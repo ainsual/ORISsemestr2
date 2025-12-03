@@ -5,7 +5,6 @@ public class Player {
     private String name;
     private double x;
     private double y;
-    private String color;
     private boolean alive;
 
     // Конструкторы
@@ -16,57 +15,24 @@ public class Player {
         this.name = name;
         this.x = GameSettings.WORLD_WIDTH / 2;
         this.y = GameSettings.WORLD_HEIGHT / 2;
-        this.color = "#FFFFFF";
         this.alive = true;
     }
 
-    public String getId() {
-        return id;
-    }
+    // Геттеры и сеттеры
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getName() {
-        return name;
-    }
+    public double getX() { return x; }
+    public void setX(double x) { this.x = x; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public double getY() { return y; }
+    public void setY(double y) { this.y = y; }
 
-    public double getX() {
-        return x;
-    }
-
-    public void setX(double x) {
-        this.x = x;
-    }
-
-    public double getY() {
-        return y;
-    }
-
-    public void setY(double y) {
-        this.y = y;
-    }
-
-    public String getColor() {
-        return color;
-    }
-
-    public void setColor(String color) {
-        this.color = color;
-    }
-
-    public boolean isAlive() {
-        return alive;
-    }
-
-    public void setAlive(boolean alive) {
-        this.alive = alive;
-    }
+    public boolean isAlive() { return alive; }
+    public void setAlive(boolean alive) { this.alive = alive; }
 
     // Клонирование для потокобезопасности
     public Player clone() {
@@ -75,7 +41,6 @@ public class Player {
         clone.setName(this.name);
         clone.setX(this.x);
         clone.setY(this.y);
-        clone.setColor(this.color);
         clone.setAlive(this.alive);
         return clone;
     }

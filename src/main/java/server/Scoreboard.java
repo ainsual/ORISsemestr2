@@ -1,9 +1,5 @@
 package server;
 
-import client.screens.ScoreboardEntry;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-
 import java.io.*;
 import java.lang.reflect.Type;
 import java.net.URL;
@@ -11,11 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 public class Scoreboard {
     private static final String SCORE_FILE = "scores.json";
@@ -84,4 +81,20 @@ public class Scoreboard {
         }
     }
 
+    public static class ScoreboardEntry {
+        private String playerName;
+        private int wins;
+
+        public ScoreboardEntry() {}
+
+        public ScoreboardEntry(String playerName, int wins) {
+            this.playerName = playerName;
+            this.wins = wins;
+        }
+
+        public String getPlayerName() { return playerName; }
+        public void setPlayerName(String playerName) { this.playerName = playerName; }
+        public int getWins() { return wins; }
+        public void setWins(int wins) { this.wins = wins; }
+    }
 }

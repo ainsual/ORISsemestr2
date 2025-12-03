@@ -1,8 +1,6 @@
 package common;
 
-import client.screens.ScoreboardEntry;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -14,156 +12,104 @@ public class Message implements Serializable {
     private String playerName;
     private double x;
     private double y;
-    private String color;
+    private String targetColor;
     private int round;
     private double timeLeft;
     private double duration;
     private boolean gameStarted;
     private boolean isRoundActive;
     private String winner;
-    private ScoreboardEntry[] scores;
+    private common.ScoreboardEntry[] scores;
     private List<Player> players;
     private double matchStartCountdown;
-    private static final Gson GSON = new Gson();
 
-    // Конструкторы
+    // Пустой конструктор для Gson
     public Message() {}
 
     public Message(String type) {
         this.type = type;
     }
 
-    public String getType() {
-        return type;
-    }
+    // Геттеры и сеттеры
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
 
-    public void setType(String type) {
-        this.type = type;
-    }
+    public String getPlayerId() { return playerId; }
+    public void setPlayerId(String playerId) { this.playerId = playerId; }
 
-    public String getPlayerId() {
-        return playerId;
-    }
+    public String getPlayerName() { return playerName; }
+    public void setPlayerName(String playerName) { this.playerName = playerName; }
 
-    public void setPlayerId(String playerId) {
-        this.playerId = playerId;
-    }
+    public double getX() { return x; }
+    public void setX(double x) { this.x = x; }
 
-    public String getPlayerName() {
-        return playerName;
-    }
+    public double getY() { return y; }
+    public void setY(double y) { this.y = y; }
 
-    public void setPlayerName(String playerName) {
-        this.playerName = playerName;
-    }
+    public String getColor() { return targetColor; }
+    public void setColor(String color) { this.targetColor = color; }
 
-    public double getX() {
-        return x;
-    }
+    public String getTargetColor() { return targetColor; }
+    public void setTargetColor(String targetColor) { this.targetColor = targetColor; }
 
-    public void setX(double x) {
-        this.x = x;
-    }
+    public int getRound() { return round; }
+    public void setRound(int round) { this.round = round; }
 
-    public double getY() {
-        return y;
-    }
+    public double getTimeLeft() { return timeLeft; }
+    public void setTimeLeft(double timeLeft) { this.timeLeft = timeLeft; }
 
-    public void setY(double y) {
-        this.y = y;
-    }
+    public double getDuration() { return duration; }
+    public void setDuration(double duration) { this.duration = duration; }
 
-    public String getColor() {
-        return color;
-    }
+    public boolean isGameStarted() { return gameStarted; }
+    public void setGameStarted(boolean gameStarted) { this.gameStarted = gameStarted; }
 
-    public void setColor(String color) {
-        this.color = color;
-    }
+    public boolean isIsRoundActive() { return isRoundActive; }
+    public void setIsRoundActive(boolean isRoundActive) { this.isRoundActive = isRoundActive; }
 
-    public int getRound() {
-        return round;
-    }
+    public String getWinner() { return winner; }
+    public void setWinner(String winner) { this.winner = winner; }
 
-    public void setRound(int round) {
-        this.round = round;
-    }
-
-    public double getTimeLeft() {
-        return timeLeft;
-    }
-
-    public void setTimeLeft(double timeLeft) {
-        this.timeLeft = timeLeft;
-    }
-
-    public double getDuration() {
-        return duration;
-    }
-
-    public void setDuration(double duration) {
-        this.duration = duration;
-    }
-
-    public boolean isGameStarted() {
-        return gameStarted;
-    }
-
-    public void setGameStarted(boolean gameStarted) {
-        this.gameStarted = gameStarted;
-    }
-
-    public boolean isRoundActive() {
-        return isRoundActive;
-    }
-
-    public void setRoundActive(boolean roundActive) {
-        isRoundActive = roundActive;
-    }
-
-    public String getWinner() {
-        return winner;
-    }
-
-    public void setWinner(String winner) {
-        this.winner = winner;
-    }
-
-    public ScoreboardEntry[] getScores() {
-        return scores;
-    }
-
-    public void setScores(ScoreboardEntry[] scores) {
-        this.scores = scores;
-    }
+    public common.ScoreboardEntry[] getScores() { return scores; }
+    public void setScores(common.ScoreboardEntry[] scores) { this.scores = scores; }
 
     public List<Player> getPlayers() {
         if (players == null) {
-            players = new ArrayList<>(); // защита от NPE
+            players = new ArrayList<>();
         }
         return players;
     }
+    public void setPlayers(List<Player> players) { this.players = players; }
 
-    // Сеттер для players
-    public void setPlayers(List<Player> players) {
-        this.players = players;
-    }
-
-    public double getMatchStartCountdown() {
-        return matchStartCountdown;
-    }
-
-    public void setMatchStartCountdown(double matchStartCountdown) {
-        this.matchStartCountdown = matchStartCountdown;
-    }
+    public double getMatchStartCountdown() { return matchStartCountdown; }
+    public void setMatchStartCountdown(double matchStartCountdown) { this.matchStartCountdown = matchStartCountdown; }
 
     // Сериализация/десериализация
+    private static final Gson gson = new Gson();
+
     public static Message fromJson(String json) {
-        return GSON.fromJson(json, Message.class);
+        return gson.fromJson(json, Message.class);
     }
 
     public String toJson() {
-        // ВАЖНО: Используем компактный JSON без отступов
-        return GSON.toJson(this);
+        return gson.toJson(this);
+    }
+
+    // Вложенный класс для рейтинга
+    public static class ScoreboardEntry {
+        private String playerName;
+        private int wins;
+
+        public ScoreboardEntry() {}
+
+        public ScoreboardEntry(String playerName, int wins) {
+            this.playerName = playerName;
+            this.wins = wins;
+        }
+
+        public String getPlayerName() { return playerName; }
+        public void setPlayerName(String playerName) { this.playerName = playerName; }
+        public int getWins() { return wins; }
+        public void setWins(int wins) { this.wins = wins; }
     }
 }

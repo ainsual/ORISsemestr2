@@ -111,7 +111,7 @@ public class GameScreen extends BorderPane {
         roundTimeLeft = message.getTimeLeft();
         roundDuration = message.getDuration();
         currentTargetColor = message.getColor();
-        isRoundActive = message.isRoundActive();
+        isRoundActive = message.isIsRoundActive();
         gameStarted = message.isGameStarted();
 
         // Обновление позиций игроков
@@ -133,7 +133,7 @@ public class GameScreen extends BorderPane {
         roundLabel.setText("Раунд: " + currentRound);
         timerLabel.setText(String.format("Времени: %.1f", roundTimeLeft));
 
-        if (!currentTargetColor.isEmpty()) {
+        if (currentTargetColor != null && !currentTargetColor.isEmpty()) {
             colorLabel.setText("Цвет: " + currentTargetColor);
             colorLabel.setTextFill(Color.web(currentTargetColor));
         }
@@ -198,7 +198,7 @@ public class GameScreen extends BorderPane {
         gc.strokeRect(0, 0, GameSettings.WORLD_WIDTH, GameSettings.WORLD_HEIGHT);
 
         // Отображение текущего цвета в углу
-        if (!currentTargetColor.isEmpty()) {
+        if (currentTargetColor != null && !currentTargetColor.isEmpty()) {
             gc.setFill(Color.web(currentTargetColor));
             gc.fillRect(GameSettings.WORLD_WIDTH - 60, 10, 50, 50);
             gc.setStroke(Color.BLACK);

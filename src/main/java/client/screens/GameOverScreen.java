@@ -2,6 +2,7 @@ package client.screens;
 
 import client.MainApp;
 import common.Message;
+import common.ScoreboardEntry;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -14,14 +15,11 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
-import java.util.Arrays;
-
 public class GameOverScreen extends BorderPane {
     private final MainApp app;
 
     public GameOverScreen(MainApp app, Message message) {
         this.app = app;
-
         setPadding(new Insets(20));
 
         // Заголовок
@@ -47,22 +45,22 @@ public class GameOverScreen extends BorderPane {
 
         TableColumn<ScoreboardEntry, String> nameCol = new TableColumn<>("Игрок");
         nameCol.setCellValueFactory(new PropertyValueFactory<>("playerName"));
-        nameCol.setPrefWidth(200);
+        nameCol.setPrefWidth(250);
 
         TableColumn<ScoreboardEntry, Integer> winsCol = new TableColumn<>("Побед");
         winsCol.setCellValueFactory(new PropertyValueFactory<>("wins"));
-        winsCol.setPrefWidth(100);
+        winsCol.setPrefWidth(150);
 
         scoresTable.getColumns().addAll(nameCol, winsCol);
 
         // Заполнение таблицы
         if (message.getScores() != null) {
-            Arrays.stream(message.getScores())
-                    .map(entry -> new ScoreboardEntry(entry.getPlayerName(), entry.getWins()))
-                    .forEach(scoresTable.getItems()::add);
+            for (ScoreboardEntry entry : message.getScores()) {
+                scoresTable.getItems().add(new ScoreboardEntry(entry.getPlayerName(), entry.getWins()));
+            }
         }
 
-        // Кнопка возврата в лобби
+        // Кнопка возврата
         Button returnButton = new Button("Вернуться в главное меню");
         returnButton.setOnAction(e -> app.showConnectionScreen());
         returnButton.setStyle("-fx-font-size: 16px; -fx-padding: 10px 20px;");

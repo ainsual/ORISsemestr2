@@ -1,13 +1,14 @@
 package server;
 
-import client.screens.ScoreboardEntry;
-import common.*;
+import common.GameSettings;
+import common.Message;
+import common.MessageTypes;
+import common.Player;
+import common.ScoreboardEntry;
+
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.function.IntFunction;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class GameRoom {
     private final Map<String, Player> players = new ConcurrentHashMap<>();
@@ -16,22 +17,40 @@ public class GameRoom {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final Scoreboard scoreboard;
 
+    // Состояние игры
     private int round = 0;
     private double roundTimeLeft;
     private double roundDuration;
     private String currentTargetColor;
     private boolean isRoundActive = false;
     private boolean gameStarted = false;
-    private double matchStartCountdown;
+    private double matchStartCountdown = 0;
 
-    private final Runnable roundTimerTask = this::updateRoundTimer;
-    private final Runnable matchStartTask = this::updateMatchStartTimer;
-    private ScheduledExecutorService roundTimer;
-    private ScheduledExecutorService matchStartTimer;
+    // Таймеры
+    private ScheduledFuture<?> roundTimer;
+    private ScheduledFuture<?> matchStartTimer;
+
+    // Для рассылки обновлений
+    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
     public GameRoom(Scoreboard scoreboard) {
         this.scoreboard = scoreboard;
         generateSpots();
+    }
+
+    public Scoreboard getScoreboard() {
+        return scoreboard;
+    }
+
+    // Регистрация клиента для рассылки обновлений
+    public void registerClient(ClientHandler client) {
+        clients.add(client);
+        System.out.println("[ROOM] Зарегистрирован клиент для обновлений. Всего клиентов: " + clients.size());
+    }
+
+    public void unregisterClient(ClientHandler client) {
+        clients.remove(client);
+        System.out.println("[ROOM] Удален клиент из обновлений. Всего клиентов: " + clients.size());
     }
 
     private void generateSpots() {
@@ -43,28 +62,53 @@ public class GameRoom {
 
     public synchronized void addPlayer(Player player) {
         players.put(player.getId(), player);
+        System.out.println("[ROOM] Добавлен игрок: " + player.getName() + " (ID: " + player.getId() + ")");
+        System.out.println("[ROOM] Всего игроков: " + players.size());
+
+        // Если набралось достаточно игроков и игра еще не начата
         if (players.size() >= 2 && !gameStarted) {
             startMatchCountdown();
         }
+
+        // Отправляем обновление всем игрокам
+        broadcastGameState();
     }
 
     public synchronized void removePlayer(String playerId) {
-        players.remove(playerId);
-        if (gameStarted && players.size() < 2) {
-            endGame(null); // Принудительное завершение при недостатке игроков
+        Player removed = players.remove(playerId);
+        if (removed != null) {
+            System.out.println("[ROOM] Удален игрок: " + removed.getName());
         }
+
+        // Если во время игры остался только один игрок
+        if (gameStarted && players.size() < 2) {
+            endGame(null);
+        }
+
+        // Отправляем обновление всем игрокам
+        broadcastGameState();
     }
 
     private void startMatchCountdown() {
+        if (matchStartTimer != null && !matchStartTimer.isDone()) {
+            matchStartTimer.cancel(true);
+        }
+
         matchStartCountdown = calculateMatchStartDelay();
         gameStarted = false;
 
-        if (matchStartTimer != null) {
-            matchStartTimer.shutdownNow();
-        }
+        System.out.println("[ROOM] Запуск обратного отсчета до начала матча: " + String.format("%.1f", matchStartCountdown) + " сек");
 
-        matchStartTimer = Executors.newSingleThreadScheduledExecutor();
-        matchStartTimer.scheduleAtFixedRate(matchStartTask, 0, 100, TimeUnit.MILLISECONDS);
+        matchStartTimer = scheduler.scheduleAtFixedRate(() -> {
+            matchStartCountdown -= 0.1;
+
+            if (matchStartCountdown <= 0) {
+                startGame();
+                if (matchStartTimer != null) matchStartTimer.cancel(true);
+            } else {
+                broadcastGameState();
+            }
+        }, 0, 100, TimeUnit.MILLISECONDS);
     }
 
     private double calculateMatchStartDelay() {
@@ -73,20 +117,10 @@ public class GameRoom {
         return Math.max(delay, GameSettings.MIN_MATCH_START_DELAY);
     }
 
-    private void updateMatchStartTimer() {
-        matchStartCountdown -= 0.1;
-
-        if (matchStartCountdown <= 0) {
-            startGame();
-            matchStartTimer.shutdown();
-        } else {
-            broadcastGameState();
-        }
-    }
-
     private void startGame() {
         gameStarted = true;
         round = 0;
+        System.out.println("[ROOM] Игра началась! Всего игроков: " + players.size());
         startNewRound();
     }
 
@@ -104,15 +138,27 @@ public class GameRoom {
             player.setAlive(true);
         }
 
+        System.out.println("[ROOM] Раунд " + round + " начался. Цвет: " + currentTargetColor +
+                ". Время: " + String.format("%.1f", roundDuration) + " сек");
+
+        // Отправляем уведомление о начале раунда
+        broadcastRoundStart();
+
         // Запуск таймера раунда
-        if (roundTimer != null) {
-            roundTimer.shutdownNow();
+        if (roundTimer != null && !roundTimer.isDone()) {
+            roundTimer.cancel(true);
         }
 
-        roundTimer = Executors.newSingleThreadScheduledExecutor();
-        roundTimer.scheduleAtFixedRate(roundTimerTask, 0, 100, TimeUnit.MILLISECONDS);
+        roundTimer = scheduler.scheduleAtFixedRate(() -> {
+            roundTimeLeft -= 0.1;
 
-        broadcastRoundStart();
+            if (roundTimeLeft <= 0) {
+                endRound();
+                if (roundTimer != null) roundTimer.cancel(true);
+            } else {
+                broadcastGameState();
+            }
+        }, 0, 100, TimeUnit.MILLISECONDS);
     }
 
     private double calculateRoundDuration() {
@@ -120,19 +166,9 @@ public class GameRoom {
         return Math.max(duration, GameSettings.MIN_ROUND_TIME);
     }
 
-    private void updateRoundTimer() {
-        roundTimeLeft -= 0.1;
-
-        if (roundTimeLeft <= 0) {
-            endRound();
-            roundTimer.shutdown();
-        } else {
-            broadcastGameState();
-        }
-    }
-
     private void endRound() {
         isRoundActive = false;
+        System.out.println("[ROOM] Раунд " + round + " завершен");
 
         // Проверка, кто остался на правильном цвете
         List<Player> survivors = new ArrayList<>();
@@ -142,8 +178,11 @@ public class GameRoom {
                 String spotColor = getSpotColorAt(player.getX(), player.getY());
                 if (spotColor.equals(currentTargetColor)) {
                     survivors.add(player);
+                    System.out.println("[ROOM] Игрок выжил: " + player.getName());
                 } else {
                     player.setAlive(false);
+                    System.out.println("[ROOM] Игрок выбыл: " + player.getName() +
+                            " (стоял на " + spotColor + ", нужен " + currentTargetColor + ")");
                 }
             }
         }
@@ -153,11 +192,12 @@ public class GameRoom {
         // Задержка перед следующим раундом или завершением
         scheduler.schedule(() -> {
             if (survivors.size() <= 1 || round >= 10) {
-                endGame(survivors.isEmpty() ? null : survivors.get(0));
+                Player winner = survivors.isEmpty() ? null : survivors.get(0);
+                endGame(winner);
             } else {
                 startNewRound();
             }
-        }, 2, TimeUnit.SECONDS);
+        }, 2000, TimeUnit.MILLISECONDS);
     }
 
     private void endGame(Player winner) {
@@ -165,16 +205,20 @@ public class GameRoom {
         isRoundActive = false;
 
         if (winner != null) {
+            System.out.println("[ROOM] Игра завершена. Победитель: " + winner.getName());
             scoreboard.addWin(winner.getName());
+        } else {
+            System.out.println("[ROOM] Игра завершена. Ничья.");
         }
 
         broadcastGameOver(winner);
 
         // Сброс комнаты через 5 секунд
-        scheduler.schedule(this::resetRoom, 5, TimeUnit.SECONDS);
+        scheduler.schedule(this::resetRoom, 5000, TimeUnit.MILLISECONDS);
     }
 
-    private void resetRoom() {
+    public void resetRoom() {
+        System.out.println("[ROOM] Сброс комнаты");
         players.clear();
         generateSpots();
     }
@@ -183,6 +227,8 @@ public class GameRoom {
         int gridX = (int)(x / GameSettings.GRID_SIZE) % GameSettings.NUM_SPOTS;
         int gridY = (int)(y / GameSettings.GRID_SIZE) % GameSettings.NUM_SPOTS;
         int index = (gridX + gridY) % GameSettings.NUM_SPOTS;
+        if (index < 0) index += GameSettings.NUM_SPOTS;
+        if (index >= spotColors.size()) index = spotColors.size() - 1;
         return spotColors.get(index);
     }
 
@@ -190,29 +236,46 @@ public class GameRoom {
         Player player = players.get(playerId);
         if (player != null && player.isAlive()) {
             // Ограничение движения в пределах поля
-            player.setX(Math.max(0, Math.min(x, GameSettings.WORLD_WIDTH - 20)));
-            player.setY(Math.max(0, Math.min(y, GameSettings.WORLD_HEIGHT - 20)));
+            double boundedX = Math.max(10, Math.min(x, GameSettings.WORLD_WIDTH - 10));
+            double boundedY = Math.max(10, Math.min(y, GameSettings.WORLD_HEIGHT - 10));
+            player.setX(boundedX);
+            player.setY(boundedY);
             broadcastGameState();
+        }
+    }
+
+    // Рассылка обновлений всем клиентам
+    private void broadcastMessage(Message message) {
+        for (ClientHandler client : new ArrayList<>(clients)) {
+            try {
+                client.sendMessage(message);
+            } catch (Exception e) {
+                System.err.println("[ROOM][ERROR] Ошибка отправки сообщения клиенту: " + e.getMessage());
+                clients.remove(client);
+            }
         }
     }
 
     private void broadcastGameState() {
         Message msg = new Message(MessageTypes.GAME_STATE);
         msg.setRound(round);
-        msg.setColor(currentTargetColor);
+        msg.setTargetColor(currentTargetColor);
         msg.setTimeLeft(roundTimeLeft);
         msg.setDuration(roundDuration);
         msg.setGameStarted(gameStarted);
-        msg.setRoundActive(isRoundActive);
+        msg.setIsRoundActive(isRoundActive);
         msg.setMatchStartCountdown(matchStartCountdown);
-        List<Player> playerList = new ArrayList<>(players.values());
-        msg.setPlayers(playerList);
 
         // Передаем клонов для потокобезопасности
-        msg.setPlayers(new ArrayList<>());
+        List<Player> playerList = new ArrayList<>();
         for (Player player : players.values()) {
-            msg.getPlayers().add(player.clone());
+            playerList.add(player.clone());
         }
+        msg.setPlayers(playerList);
+
+        System.out.println("[ROOM][DEBUG] Отправка GAME_STATE. Раунд: " + round +
+                ", Игроков: " + players.size() +
+                ", Времени: " + String.format("%.1f", roundTimeLeft));
 
         broadcastMessage(msg);
     }
@@ -229,116 +292,17 @@ public class GameRoom {
         if (winner != null) {
             msg.setWinner(winner.getName());
         }
-        msg.setScores(scoreboard.getTopScores(10)
-                .stream()
-                .map(entry -> new ScoreboardEntry(entry.getPlayerName(), entry.getWins()))
-                .toArray((IntFunction<ScoreboardEntry[]>) ScoreboardEntry[]::new));
+
+        // Получаем топ-10 игроков для отправки
+        List<server.Scoreboard.ScoreboardEntry> topScores = scoreboard.getTopScores(10);
+        ScoreboardEntry[] entries = new ScoreboardEntry[topScores.size()];
+
+        for (int i = 0; i < topScores.size(); i++) {
+            server.Scoreboard.ScoreboardEntry entry = topScores.get(i);
+            entries[i] = new ScoreboardEntry(entry.getPlayerName(), entry.getWins());
+        }
+
+        msg.setScores(entries);
         broadcastMessage(msg);
-    }
-
-    private void broadcastMessage(Message message) {
-        // В реальной реализации здесь отправка сообщений всем клиентам
-        // Для примера просто вывод в консоль
-        System.out.println("Отправлено сообщение: " + message.getType());
-    }
-
-    public Map<String, Player> getPlayers() {
-        return players;
-    }
-
-    public List<String> getSpotColors() {
-        return spotColors;
-    }
-
-    public Random getRandom() {
-        return random;
-    }
-
-    public ScheduledExecutorService getScheduler() {
-        return scheduler;
-    }
-
-    public Scoreboard getScoreboard() {
-        return scoreboard;
-    }
-
-    public int getRound() {
-        return round;
-    }
-
-    public void setRound(int round) {
-        this.round = round;
-    }
-
-    public double getRoundTimeLeft() {
-        return roundTimeLeft;
-    }
-
-    public void setRoundTimeLeft(double roundTimeLeft) {
-        this.roundTimeLeft = roundTimeLeft;
-    }
-
-    public double getRoundDuration() {
-        return roundDuration;
-    }
-
-    public void setRoundDuration(double roundDuration) {
-        this.roundDuration = roundDuration;
-    }
-
-    public String getCurrentTargetColor() {
-        return currentTargetColor;
-    }
-
-    public void setCurrentTargetColor(String currentTargetColor) {
-        this.currentTargetColor = currentTargetColor;
-    }
-
-    public boolean isRoundActive() {
-        return isRoundActive;
-    }
-
-    public void setRoundActive(boolean roundActive) {
-        isRoundActive = roundActive;
-    }
-
-    public boolean isGameStarted() {
-        return gameStarted;
-    }
-
-    public void setGameStarted(boolean gameStarted) {
-        this.gameStarted = gameStarted;
-    }
-
-    public double getMatchStartCountdown() {
-        return matchStartCountdown;
-    }
-
-    public void setMatchStartCountdown(double matchStartCountdown) {
-        this.matchStartCountdown = matchStartCountdown;
-    }
-
-    public Runnable getRoundTimerTask() {
-        return roundTimerTask;
-    }
-
-    public Runnable getMatchStartTask() {
-        return matchStartTask;
-    }
-
-    public ScheduledExecutorService getRoundTimer() {
-        return roundTimer;
-    }
-
-    public void setRoundTimer(ScheduledExecutorService roundTimer) {
-        this.roundTimer = roundTimer;
-    }
-
-    public ScheduledExecutorService getMatchStartTimer() {
-        return matchStartTimer;
-    }
-
-    public void setMatchStartTimer(ScheduledExecutorService matchStartTimer) {
-        this.matchStartTimer = matchStartTimer;
     }
 }
