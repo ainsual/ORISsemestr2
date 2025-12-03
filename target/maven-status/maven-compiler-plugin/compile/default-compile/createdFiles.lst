@@ -1,7 +1,6 @@
 client\screens\GameScreen.class
 common\MessageTypes.class
 client\screens\LobbyScreen.class
-server\GameServer$ClientHandler.class
 client\screens\ScoreboardEntry.class
 server\Scoreboard$1.class
 client\screens\GameScreen$1.class

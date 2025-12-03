@@ -7,40 +7,59 @@ import javafx.scene.control.Alert;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 public class NetworkService {
     private Socket socket;
-    private ObjectOutputStream out;
-    private ObjectInputStream in;
     private Thread receiveThread;
     private boolean connected = false;
     private final Consumer<Message> messageHandler;
+    private OutputStream outputStream;
+    private InputStream inputStream;
 
     public NetworkService(Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
     }
 
+    public void sendMove(double x, double y) {
+        if (!connected) return;
+
+        try {
+            Message msg = new Message(MessageTypes.MOVE);
+            msg.setX(x);
+            msg.setY(y);
+
+            String json = msg.toJson();
+            System.out.println("[CLIENT][DEBUG] SENDING MOVE: " + json);
+            sendRawMessage(json);
+        } catch (Exception e) {
+            handleConnectionError(e);
+        }
+    }
+
     public boolean connect(String host, int port) {
-        System.out.println("[CLIENT]1 Попытка подключения к " + host + ":" + port);
+        System.out.println("[CLIENT]1 Attempting to connect to " + host + ":" + port);
         try {
             socket = new Socket(host, port);
-            System.out.println("[CLIENT]2 Успешно подключен к серверу");
+            System.out.println("[CLIENT]2 Successfully connected to server");
 
-            out = new ObjectOutputStream(socket.getOutputStream());
-            in = new ObjectInputStream(socket.getInputStream());
+            // Use raw streams without wrappers
+            outputStream = socket.getOutputStream();
+            inputStream = socket.getInputStream();
             connected = true;
 
-            System.out.println("[CLIENT]3 Потоки ввода/вывода созданы");
+            System.out.println("[CLIENT]3 I/O streams created");
 
             receiveThread = new Thread(this::receiveMessages);
             receiveThread.setDaemon(true);
             receiveThread.start();
 
-            System.out.println("[CLIENT]4 Поток приема сообщений good");
+            System.out.println("[CLIENT]4 Message receiving thread started");
             return true;
         } catch (IOException e) {
-            System.out.println("[CLIENT]5 ОШИБКА подключения: " + e.getMessage());
+            System.out.println("[CLIENT]5 CONNECTION ERROR: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -50,10 +69,9 @@ public class NetworkService {
         if (!connected) return;
 
         try {
-            if (out != null) {
-                Message msg = new Message(common.MessageTypes.DISCONNECT);
-                out.writeUTF(msg.toJson());
-                out.flush();
+            if (outputStream != null) {
+                Message msg = new Message(MessageTypes.DISCONNECT);
+                sendRawMessage(msg.toJson());
             }
 
             connected = false;
@@ -65,7 +83,7 @@ public class NetworkService {
                 socket.close();
             }
         } catch (IOException e) {
-            System.err.println("Ошибка при отключении: " + e.getMessage());
+            System.err.println("Error during disconnect: " + e.getMessage());
         }
     }
 
@@ -73,49 +91,80 @@ public class NetworkService {
         if (!connected) return;
         try {
             Message msg = new Message(MessageTypes.CONNECT);
-            System.out.println("server get message");
+            System.out.println("Server received message");
             msg.setPlayerName(playerName);
-            out.writeUTF(msg.toJson());  // ← JSON через writeUTF()
-            System.out.println("server formater message");
-            out.flush();
-        } catch (IOException e) {
+            msg.setPlayerId(UUID.randomUUID().toString());
+
+            String json = msg.toJson();
+            System.out.println("[CLIENT][DEBUG] SENDING: " + json);
+            sendRawMessage(json);
+
+            System.out.println("Server formatted message");
+        } catch (Exception e) {
             handleConnectionError(e);
         }
     }
 
-    public void sendMove(double x, double y) {
-        if (!connected) return;
-
-        try {
-            Message msg = new Message(common.MessageTypes.MOVE);
-            msg.setX(x);
-            msg.setY(y);
-            out.writeUTF(msg.toJson());
-            out.flush();
-        } catch (IOException e) {
-            handleConnectionError(e);
-        }
+    private void sendRawMessage(String message) throws IOException {
+        // Add newline delimiter for proper reading on the server side
+        String messageWithNewline = message + "\n";
+        byte[] bytes = messageWithNewline.getBytes(StandardCharsets.UTF_8);
+        outputStream.write(bytes);
+        outputStream.flush();
+        System.out.println("[CLIENT][DEBUG] Sent bytes: " + bytes.length);
     }
 
     private void receiveMessages() {
-        while (connected && !Thread.currentThread().isInterrupted()) {
-            try {
-                String json = in.readUTF();
-                Message message = Message.fromJson(json);
-                Platform.runLater(() -> messageHandler.accept(message));
-            } catch (IOException e) {
-                if (connected) {
-                    handleConnectionError(e);
+        System.out.println("[CLIENT][DEBUG] Starting message receiving thread");
+        byte[] buffer = new byte[4096];
+        StringBuilder currentMessage = new StringBuilder();
+
+        try {
+            int bytesRead;
+            while (connected && (bytesRead = inputStream.read(buffer)) != -1) {
+                String received = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+                System.out.println("[CLIENT][DEBUG] Received bytes: " + bytesRead);
+                System.out.println("[CLIENT][DEBUG] Raw  [" + received + "]");
+
+                currentMessage.append(received);
+
+                // Process messages separated by newline
+                while (currentMessage.indexOf("\n") != -1) {
+                    int endIndex = currentMessage.indexOf("\n");
+                    String json = currentMessage.substring(0, endIndex).trim();
+                    currentMessage.delete(0, endIndex + 1);
+
+                    if (!json.isEmpty()) {
+                        System.out.println("[CLIENT][DEBUG] RECEIVED FROM SERVER: " + json);
+
+                        try {
+                            Message message = Message.fromJson(json);
+                            System.out.println("[CLIENT][DEBUG] Parsed message type: " + message.getType());
+                            Platform.runLater(() -> messageHandler.accept(message));
+                        } catch (Exception e) {
+                            System.err.println("[CLIENT][ERROR] Parsing error: " + e.getMessage());
+                            System.err.println("[CLIENT][DEBUG] Invalid JSON: " + json);
+                            e.printStackTrace();
+                        }
+                    }
                 }
-                break;
             }
+        } catch (IOException e) {
+            if (connected) {
+                System.err.println("[CLIENT][ERROR] IOException: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                e.printStackTrace();
+                handleConnectionError(e);
+            }
+        } finally {
+            System.out.println("[CLIENT][DEBUG] Message receiving thread finished");
+            connected = false;
         }
     }
 
     private void handleConnectionError(Exception e) {
         Platform.runLater(() -> {
-            showAlert("Потеряно соединение",
-                    "Соединение с сервером потеряно: " + e.getMessage());
+            showAlert("Connection lost",
+                    "Connection to server was lost: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
             connected = false;
         });
     }

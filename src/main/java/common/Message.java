@@ -2,6 +2,7 @@ package common;
 
 import client.screens.ScoreboardEntry;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ public class Message implements Serializable {
     private ScoreboardEntry[] scores;
     private List<Player> players;
     private double matchStartCountdown;
+    private static final Gson GSON = new Gson();
 
     // Конструкторы
     public Message() {}
@@ -157,10 +159,11 @@ public class Message implements Serializable {
 
     // Сериализация/десериализация
     public static Message fromJson(String json) {
-        return new Gson().fromJson(json, Message.class);
+        return GSON.fromJson(json, Message.class);
     }
 
     public String toJson() {
-        return new Gson().toJson(this);
+        // ВАЖНО: Используем компактный JSON без отступов
+        return GSON.toJson(this);
     }
 }

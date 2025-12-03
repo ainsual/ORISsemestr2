@@ -242,4 +242,103 @@ public class GameRoom {
         System.out.println("Отправлено сообщение: " + message.getType());
     }
 
+    public Map<String, Player> getPlayers() {
+        return players;
+    }
+
+    public List<String> getSpotColors() {
+        return spotColors;
+    }
+
+    public Random getRandom() {
+        return random;
+    }
+
+    public ScheduledExecutorService getScheduler() {
+        return scheduler;
+    }
+
+    public Scoreboard getScoreboard() {
+        return scoreboard;
+    }
+
+    public int getRound() {
+        return round;
+    }
+
+    public void setRound(int round) {
+        this.round = round;
+    }
+
+    public double getRoundTimeLeft() {
+        return roundTimeLeft;
+    }
+
+    public void setRoundTimeLeft(double roundTimeLeft) {
+        this.roundTimeLeft = roundTimeLeft;
+    }
+
+    public double getRoundDuration() {
+        return roundDuration;
+    }
+
+    public void setRoundDuration(double roundDuration) {
+        this.roundDuration = roundDuration;
+    }
+
+    public String getCurrentTargetColor() {
+        return currentTargetColor;
+    }
+
+    public void setCurrentTargetColor(String currentTargetColor) {
+        this.currentTargetColor = currentTargetColor;
+    }
+
+    public boolean isRoundActive() {
+        return isRoundActive;
+    }
+
+    public void setRoundActive(boolean roundActive) {
+        isRoundActive = roundActive;
+    }
+
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
+
+    public void setGameStarted(boolean gameStarted) {
+        this.gameStarted = gameStarted;
+    }
+
+    public double getMatchStartCountdown() {
+        return matchStartCountdown;
+    }
+
+    public void setMatchStartCountdown(double matchStartCountdown) {
+        this.matchStartCountdown = matchStartCountdown;
+    }
+
+    public Runnable getRoundTimerTask() {
+        return roundTimerTask;
+    }
+
+    public Runnable getMatchStartTask() {
+        return matchStartTask;
+    }
+
+    public ScheduledExecutorService getRoundTimer() {
+        return roundTimer;
+    }
+
+    public void setRoundTimer(ScheduledExecutorService roundTimer) {
+        this.roundTimer = roundTimer;
+    }
+
+    public ScheduledExecutorService getMatchStartTimer() {
+        return matchStartTimer;
+    }
+
+    public void setMatchStartTimer(ScheduledExecutorService matchStartTimer) {
+        this.matchStartTimer = matchStartTimer;
+    }
 }
