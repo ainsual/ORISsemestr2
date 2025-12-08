@@ -46,9 +46,6 @@ public class Message implements Serializable {
     public double getY() { return y; }
     public void setY(double y) { this.y = y; }
 
-    public String getColor() { return targetColor; }
-    public void setColor(String color) { this.targetColor = color; }
-
     public String getTargetColor() { return targetColor; }
     public void setTargetColor(String targetColor) { this.targetColor = targetColor; }
 

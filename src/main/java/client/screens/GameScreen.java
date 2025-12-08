@@ -42,6 +42,7 @@ public class GameScreen extends BorderPane {
     private String currentTargetColor = "";
     private boolean isRoundActive = false;
     private boolean gameStarted = false;
+    private double matchStartCountdown = 0;
 
     private double playerX = GameSettings.WORLD_WIDTH / 2;
     private double playerY = GameSettings.WORLD_HEIGHT / 2;
@@ -110,18 +111,21 @@ public class GameScreen extends BorderPane {
         currentRound = message.getRound();
         roundTimeLeft = message.getTimeLeft();
         roundDuration = message.getDuration();
-        currentTargetColor = message.getColor();
+        currentTargetColor = message.getTargetColor() != null ?
+                message.getTargetColor() : "#FFFFFF";
         isRoundActive = message.isIsRoundActive();
         gameStarted = message.isGameStarted();
+        matchStartCountdown = message.getMatchStartCountdown();
 
-        // Обновление позиций игроков
+        // Обновление позиций игроков, но локальный игрок не добавляется в общий список
         players.clear();
         if (message.getPlayers() != null) {
             for (Player player : message.getPlayers()) {
-                players.put(player.getId(), player);
-
-                // Обновление локального игрока
-                if (player.getId().equals(playerId)) {
+                // Добавляем в общий список ТОЛЬКО других игроков
+                if (!player.getId().equals(playerId)) {
+                    players.put(player.getId(), player);
+                } else {
+                    // Обновление локального игрока
                     playerX = player.getX();
                     playerY = player.getY();
                     isAlive = player.isAlive();
@@ -131,7 +135,13 @@ public class GameScreen extends BorderPane {
 
         // Обновление UI
         roundLabel.setText("Раунд: " + currentRound);
-        timerLabel.setText(String.format("Времени: %.1f", roundTimeLeft));
+        if (!gameStarted) {
+            timerLabel.setText(String.format("Время до начала матча: %.1f", matchStartCountdown));
+            timerLabel.setTextFill(Color.BLUE); // например, синий для ожидания
+        } else if (isRoundActive) {
+            timerLabel.setText(String.format("Времени до конца раунда: %.1f", roundTimeLeft));
+            timerLabel.setTextFill(Color.RED); // красный — активный отсчёт
+        }
 
         if (currentTargetColor != null && !currentTargetColor.isEmpty()) {
             colorLabel.setText("Цвет: " + currentTargetColor);
@@ -148,7 +158,7 @@ public class GameScreen extends BorderPane {
     }
 
     public void handleRoundStart(Message message) {
-        currentTargetColor = message.getColor();
+        currentTargetColor = message.getTargetColor();
         roundDuration = message.getDuration();
         roundTimeLeft = roundDuration;
         isRoundActive = true;
@@ -159,9 +169,6 @@ public class GameScreen extends BorderPane {
         statusLabel.setTextFill(Color.DARKBLUE);
     }
 
-    public void setPlayerId(String playerId) {
-        this.playerId = playerId;
-    }
 
     private void updateGame() {
         if (!isAlive || !isRoundActive || !gameStarted) return;
@@ -211,8 +218,9 @@ public class GameScreen extends BorderPane {
         for (int y = 0; y < GameSettings.WORLD_HEIGHT; y += GameSettings.GRID_SIZE) {
             for (int x = 0; x < GameSettings.WORLD_WIDTH; x += GameSettings.GRID_SIZE) {
                 // Алгоритм определения цвета пятна
-                int index = ((int)(x / GameSettings.GRID_SIZE) + (int)(y / GameSettings.GRID_SIZE)) %
-                        GameSettings.ROUND_COLORS.length;
+                int gridX = (int)(x / GameSettings.GRID_SIZE);
+                int gridY = (int)(y / GameSettings.GRID_SIZE);
+                int index = (gridX + gridY) % GameSettings.ROUND_COLORS.length;
                 String color = GameSettings.ROUND_COLORS[index];
 
                 gc.setFill(Color.web(color));
@@ -222,13 +230,7 @@ public class GameScreen extends BorderPane {
     }
 
     private void drawPlayers() {
-        // Основной игрок
-        gc.setFill(isAlive ? Color.BLUE : Color.GRAY);
-        gc.fillOval(playerX - 10, playerY - 10, 20, 20);
-        gc.setStroke(Color.BLACK);
-        gc.strokeOval(playerX - 10, playerY - 10, 20, 20);
-
-        // Соперники
+        // Сначала рисуем других игроков (красных)
         for (Player player : players.values()) {
             if (!player.getId().equals(playerId)) {
                 gc.setFill(player.isAlive() ? Color.RED : Color.GRAY);
@@ -237,5 +239,11 @@ public class GameScreen extends BorderPane {
                 gc.strokeOval(player.getX() - 10, player.getY() - 10, 20, 20);
             }
         }
+
+        // Затем поверх них рисуем своего игрока (синего)
+        gc.setFill(isAlive ? Color.BLUE : Color.GRAY);
+        gc.fillOval(playerX - 10, playerY - 10, 20, 20);
+        gc.setStroke(Color.BLACK);
+        gc.strokeOval(playerX - 10, playerY - 10, 20, 20);
     }
 }

@@ -5,6 +5,7 @@ import client.screens.ConnectionScreen;
 import client.screens.GameOverScreen;
 import client.screens.GameScreen;
 import client.screens.LobbyScreen;
+import common.MessageTypes;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;

@@ -8,11 +8,9 @@ import common.ScoreboardEntry;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class GameRoom {
     private final Map<String, Player> players = new ConcurrentHashMap<>();
-    private final List<String> spotColors = new ArrayList<>();
     private final Random random = new Random();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final Scoreboard scoreboard;
@@ -35,11 +33,7 @@ public class GameRoom {
 
     public GameRoom(Scoreboard scoreboard) {
         this.scoreboard = scoreboard;
-        generateSpots();
-    }
-
-    public Scoreboard getScoreboard() {
-        return scoreboard;
+        //generateSpots();
     }
 
     // Регистрация клиента для рассылки обновлений
@@ -53,14 +47,17 @@ public class GameRoom {
         System.out.println("[ROOM] Удален клиент из обновлений. Всего клиентов: " + clients.size());
     }
 
-    private void generateSpots() {
-        spotColors.clear();
-        for (int i = 0; i < GameSettings.NUM_SPOTS; i++) {
-            spotColors.add(GameSettings.ROUND_COLORS[random.nextInt(GameSettings.ROUND_COLORS.length)]);
-        }
-    }
+//    private void generateSpots() {
+//        spotColors.clear();
+//        for (int i = 0; i < GameSettings.NUM_SPOTS; i++) {
+//            spotColors.add(GameSettings.ROUND_COLORS[random.nextInt(GameSettings.ROUND_COLORS.length)]);
+//        }
+//    }
 
     public synchronized void addPlayer(Player player) {
+        if (gameStarted) {
+            return;
+        }
         players.put(player.getId(), player);
         System.out.println("[ROOM] Добавлен игрок: " + player.getName() + " (ID: " + player.getId() + ")");
         System.out.println("[ROOM] Всего игроков: " + players.size());
@@ -121,6 +118,7 @@ public class GameRoom {
         gameStarted = true;
         round = 0;
         System.out.println("[ROOM] Игра началась! Всего игроков: " + players.size());
+        currentTargetColor = "#FFFFFF";
         startNewRound();
     }
 
@@ -176,6 +174,7 @@ public class GameRoom {
         for (Player player : players.values()) {
             if (player.isAlive()) {
                 String spotColor = getSpotColorAt(player.getX(), player.getY());
+                System.out.println("[ROOM Цвет игрока " + player.getName() + spotColor );
                 if (spotColor.equals(currentTargetColor)) {
                     survivors.add(player);
                     System.out.println("[ROOM] Игрок выжил: " + player.getName());
@@ -212,24 +211,24 @@ public class GameRoom {
         }
 
         broadcastGameOver(winner);
-
         // Сброс комнаты через 5 секунд
-        scheduler.schedule(this::resetRoom, 5000, TimeUnit.MILLISECONDS);
     }
 
     public void resetRoom() {
         System.out.println("[ROOM] Сброс комнаты");
+        for (String playerId: players.keySet()) {
+            removePlayer(playerId);
+        }
         players.clear();
-        generateSpots();
+
+
     }
 
     private String getSpotColorAt(double x, double y) {
-        int gridX = (int)(x / GameSettings.GRID_SIZE) % GameSettings.NUM_SPOTS;
-        int gridY = (int)(y / GameSettings.GRID_SIZE) % GameSettings.NUM_SPOTS;
-        int index = (gridX + gridY) % GameSettings.NUM_SPOTS;
-        if (index < 0) index += GameSettings.NUM_SPOTS;
-        if (index >= spotColors.size()) index = spotColors.size() - 1;
-        return spotColors.get(index);
+        int gridX = (int) (x / GameSettings.GRID_SIZE);
+        int gridY = (int) (y / GameSettings.GRID_SIZE);
+        int index = (gridX + gridY) % GameSettings.ROUND_COLORS.length;
+        return GameSettings.ROUND_COLORS[index];
     }
 
     public void handlePlayerMove(String playerId, double x, double y) {
@@ -282,7 +281,7 @@ public class GameRoom {
 
     private void broadcastRoundStart() {
         Message msg = new Message(MessageTypes.ROUND_START);
-        msg.setColor(currentTargetColor);
+        msg.setTargetColor(currentTargetColor);
         msg.setDuration(roundDuration);
         broadcastMessage(msg);
     }
