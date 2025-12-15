@@ -22,7 +22,7 @@ public class GameRoom {
     private String currentTargetColor;
     private boolean isRoundActive = false;
     private boolean gameStarted = false;
-    private double matchStartCountdown = 0;
+    private double matchStartCountdown = 1000;
 
     // Таймеры
     private ScheduledFuture<?> roundTimer;
@@ -109,20 +109,23 @@ public class GameRoom {
     }
 
     private double calculateMatchStartDelay() {
+        if (matchStartCountdown == 1000) {
+            return -0.1;
+        }
         double delay = GameSettings.BASE_MATCH_START_DELAY -
                 ((players.size() - 2) * GameSettings.PLAYER_DELAY_REDUCTION);
         return Math.max(delay, GameSettings.MIN_MATCH_START_DELAY);
     }
 
     private void startGame() {
+        isRoundActive = false;
+        currentTargetColor = "#FFFFF";
         gameStarted = true;
-        round = 0;
         System.out.println("[ROOM] Игра началась! Всего игроков: " + players.size());
-        currentTargetColor = "#FFFFFF";
-        startNewRound();
+        startNewRound(true);
     }
 
-    private void startNewRound() {
+    private void startNewRound(boolean isStart) {
         round++;
         currentTargetColor = GameSettings.ROUND_COLORS[random.nextInt(GameSettings.ROUND_COLORS.length)];
         roundDuration = calculateRoundDuration();
@@ -140,7 +143,11 @@ public class GameRoom {
                 ". Время: " + String.format("%.1f", roundDuration) + " сек");
 
         // Отправляем уведомление о начале раунда
-        broadcastRoundStart();
+        if (isStart) {
+            broadcastGameStart();
+        } else {
+            broadcastRoundStart();
+        }
 
         // Запуск таймера раунда
         if (roundTimer != null && !roundTimer.isDone()) {
@@ -190,19 +197,19 @@ public class GameRoom {
 
         // Задержка перед следующим раундом или завершением
         scheduler.schedule(() -> {
-            if (survivors.size() <= 1 || round >= 10) {
+            if (survivors.size() <= 1) {
                 Player winner = survivors.isEmpty() ? null : survivors.get(0);
                 endGame(winner);
             } else {
-                startNewRound();
+                startNewRound(false);
             }
         }, 2000, TimeUnit.MILLISECONDS);
     }
 
     private void endGame(Player winner) {
-        gameStarted = false;
-        isRoundActive = false;
-
+        resetParamsGame();
+        round = 0;
+        currentTargetColor = "#FFFFFF";
         if (winner != null) {
             System.out.println("[ROOM] Игра завершена. Победитель: " + winner.getName());
             scoreboard.addWin(winner.getName());
@@ -212,9 +219,13 @@ public class GameRoom {
 
         broadcastGameOver(winner);
         // Сброс комнаты через 5 секунд
+
     }
 
-    public void resetRoom() {
+    public void resetParamsGame() {
+        gameStarted = false;
+        isRoundActive = false;
+        currentTargetColor = "#FFFFFF";
         System.out.println("[ROOM] Сброс комнаты");
         for (String playerId: players.keySet()) {
             removePlayer(playerId);
@@ -280,7 +291,15 @@ public class GameRoom {
     }
 
     private void broadcastRoundStart() {
-        Message msg = new Message(MessageTypes.ROUND_START);
+        Message msg = new Message();
+        msg.setTargetColor(currentTargetColor);
+        msg.setDuration(roundDuration);
+        broadcastMessage(msg);
+    }
+
+    private void broadcastGameStart() {
+        Message msg = new Message(MessageTypes.MATCH_START);
+        System.out.println("[ROOM] MATCH__START");
         msg.setTargetColor(currentTargetColor);
         msg.setDuration(roundDuration);
         broadcastMessage(msg);

@@ -4,6 +4,7 @@ client\screens\LobbyScreen.class
 server\Scoreboard$ScoreboardEntry.class
 common\ScoreboardEntry.class
 server\Scoreboard$1.class
+client\Launcher.class
 client\screens\GameScreen$1.class
 server\GameServer.class
 server\Scoreboard.class

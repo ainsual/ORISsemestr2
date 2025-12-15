@@ -32,7 +32,7 @@ public class ConnectionScreen extends VBox {
         ipField = new TextField("localhost");
         ipField.setPromptText("IP адрес сервера");
 
-        portField = new TextField("5555");
+        portField = new TextField("5556");
         portField.setPromptText("Порт сервера");
 
         nameField = new TextField();
@@ -74,13 +74,14 @@ public class ConnectionScreen extends VBox {
         }
 
         statusLabel.setText("Подключение...");
-        connectButton.setDisable(true);
+        connectButton.setDisable(false);
 
         // Подключение в отдельном потоке
         new Thread(() -> {
             boolean connected = networkService.connect(ip, port);
             if (connected) {
                 networkService.sendConnect(name);
+
             } else {
                 javafx.application.Platform.runLater(() -> {
                     connectButton.setDisable(false);

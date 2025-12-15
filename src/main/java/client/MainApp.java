@@ -1,127 +1,187 @@
 package client;
 
-
 import client.screens.ConnectionScreen;
 import client.screens.GameOverScreen;
 import client.screens.GameScreen;
 import client.screens.LobbyScreen;
-import common.MessageTypes;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+import static common.MessageTypes.*;
 
 public class MainApp extends Application {
+
     private Stage primaryStage;
+    private Scene mainScene;
+
     private NetworkService networkService;
+
     private ConnectionScreen connectionScreen;
     private LobbyScreen lobbyScreen;
     private GameScreen gameScreen;
     private GameOverScreen gameOverScreen;
 
+    private boolean isClosing = false;
+    private boolean gameStarted = false; // Флаг начала игры
+
     @Override
-    public void start(Stage primaryStage) {
-        this.primaryStage = primaryStage;
+    public void start(Stage stage) {
+        this.primaryStage = stage;
         this.networkService = new NetworkService(this::handleServerMessage);
 
-        showConnectionScreen();
+        connectionScreen = new ConnectionScreen(this, networkService);
+        mainScene = new Scene(connectionScreen, 400, 300);
 
+        primaryStage.setScene(mainScene);
         primaryStage.setTitle("ColorRush - Мультиплеерная игра");
         primaryStage.setResizable(false);
+
         primaryStage.setOnCloseRequest(e -> {
+            isClosing = true;
             if (networkService != null) {
                 networkService.disconnect();
             }
             Platform.exit();
             System.exit(0);
         });
+
+        primaryStage.show();
     }
 
     private void handleServerMessage(common.Message message) {
-        // Обработка сообщений от сервера (как в предыдущем варианте)
+        System.out.println("[CLIENT] Получено сообщение: " + message.getType());
+
         Platform.runLater(() -> {
             switch (message.getType()) {
-                case common.MessageTypes.CONNECT:
+                case CONNECT:
                     showLobbyScreen(message.getPlayerId());
                     break;
-                case common.MessageTypes.GAME_STATE:
-                    updateGameState(message);
+                case GAME_STATE:
+                    handleGameState(message);
                     break;
-                case common.MessageTypes.ROUND_START:
+                case ROUND_START:
                     handleRoundStart(message);
                     break;
-                case common.MessageTypes.GAME_OVER:
+                case GAME_OVER:
                     showGameOverScreen(message);
                     break;
-                case common.MessageTypes.MATCH_START:
-                    updateMatchStart(message);
+                case MATCH_START:
+                    handleMatchStart(message);
                     break;
             }
         });
     }
 
-    private void updateGameState(common.Message message) {
-        Scene scene = primaryStage.getScene();
-        if (scene == null) return;
-
-        Object root = scene.getRoot();
-
-        if (root instanceof GameScreen) {
-            ((GameScreen) root).updateGameState(message);
-        } else {
+    private void handleGameState(common.Message message) {
+        // Если игра началась, но игровые экран еще не отображен
+        if (message.isGameStarted() && !gameStarted && (mainScene.getRoot() instanceof LobbyScreen || lobbyScreen != null)) {
+            System.out.println("[CLIENT] Игра началась, переключаемся на игровой экран");
             showGameScreen();
-            ((GameScreen) primaryStage.getScene().getRoot()).updateGameState(message);
+            gameStarted = true;
+        }
+
+        if (gameScreen != null) {
+            gameScreen.updateGameState(message);
+        }
+    }
+
+    private void handleMatchStart(common.Message message) {
+        System.out.println("[CLIENT] Получено сообщение MATCH_START");
+        // Просто показываем игровой экран, если мы в лобби
+        if (mainScene.getRoot() instanceof LobbyScreen || lobbyScreen != null) {
+            System.out.println("[CLIENT] Переключение на игровой экран по MATCH_START");
+            showGameScreen();
+            gameStarted = true;
         }
     }
 
     private void handleRoundStart(common.Message message) {
-        Scene scene = primaryStage.getScene();
-        if (scene == null) return;
-
-        Object root = scene.getRoot();
-
-        if (root instanceof GameScreen) {
-            ((GameScreen) root).handleRoundStart(message);
+        if (gameScreen != null) {
+            gameScreen.handleRoundStart(message);
         } else {
+            // Если раунд начался, но игровой экран еще не отображен
+            System.out.println("[CLIENT] Раунд начался, показываем игровой экран");
             showGameScreen();
-            ((GameScreen) primaryStage.getScene().getRoot()).handleRoundStart(message);
-        }
-    }
-
-    private void updateMatchStart(common.Message message) {
-        Scene scene = primaryStage.getScene();
-        if (scene == null) return;
-
-        Object root = scene.getRoot();
-
-        if (root instanceof LobbyScreen) {
-            ((LobbyScreen) root).updateMatchStart(message);
+            if (gameScreen != null) {
+                gameScreen.handleRoundStart(message);
+            }
         }
     }
 
     public void showConnectionScreen() {
-        ConnectionScreen screen = new ConnectionScreen(this, networkService);
-        primaryStage.setScene(new Scene(screen, 400, 300));
-        primaryStage.show();
+        cleanupCurrentScreen();
+        gameStarted = false; // Сбрасываем флаг начала игры
+
+        if (connectionScreen == null) {
+            connectionScreen = new ConnectionScreen(this, networkService);
+        }
+
+        mainScene.setRoot(connectionScreen);
+
+        primaryStage.setResizable(false);
+        primaryStage.setWidth(400);
+        primaryStage.setHeight(300);
+        primaryStage.centerOnScreen();
     }
 
     public void showLobbyScreen(String playerId) {
-        LobbyScreen screen = new LobbyScreen(this, networkService, playerId);
-        primaryStage.setScene(new Scene(screen, 800, 600));
-        primaryStage.show();
+        cleanupCurrentScreen();
+        gameStarted = false; // Сбрасываем флаг начала игры
+
+        lobbyScreen = new LobbyScreen(this, networkService, playerId);
+        mainScene.setRoot(lobbyScreen);
+
+        primaryStage.setResizable(false);
+        primaryStage.setWidth(800);
+        primaryStage.setHeight(600);
+        primaryStage.centerOnScreen();
     }
 
     public void showGameScreen() {
-        GameScreen screen = new GameScreen(this, networkService);
-        primaryStage.setScene(new Scene(screen, 800, 600));
-        primaryStage.show();
+        cleanupCurrentScreen();
+
+        gameScreen = new GameScreen(this, networkService);
+        mainScene.setRoot(gameScreen);
+
+        primaryStage.setResizable(true);
+        primaryStage.setWidth(800);
+        primaryStage.setHeight(600);
+        primaryStage.centerOnScreen();
     }
 
     public void showGameOverScreen(common.Message message) {
-        GameOverScreen screen = new GameOverScreen(this, message);
-        primaryStage.setScene(new Scene(screen, 800, 600));
-        primaryStage.show();
+        cleanupCurrentScreen();
+        gameStarted = false; // Сбрасываем флаг начала игры
+
+        gameOverScreen = new GameOverScreen(this, message);
+        mainScene.setRoot(gameOverScreen);
+        primaryStage.sizeToScene();
+
+        new Thread(() -> {
+            networkService.disconnect();
+
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException ignored) {}
+
+            Platform.runLater(() -> {
+                if (!isClosing) {
+                    showConnectionScreen();
+                }
+            });
+        }).start();
+    }
+
+    private void cleanupCurrentScreen() {
+        if (gameScreen != null) {
+            gameScreen.cleanup();
+            gameScreen = null;
+        }
+
+        lobbyScreen = null;
+        gameOverScreen = null;
     }
 
     public static void main(String[] args) {

@@ -92,7 +92,7 @@ public class ClientHandler implements Runnable {
                 handleMove(message);
                 break;
             case MessageTypes.DISCONNECT:
-                running = false;
+                disconnect();
                 break;
         }
     }

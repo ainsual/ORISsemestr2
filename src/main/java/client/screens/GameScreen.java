@@ -8,6 +8,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
@@ -32,6 +33,7 @@ public class GameScreen extends BorderPane {
     private final Label timerLabel;
     private final Label colorLabel;
     private final Label statusLabel;
+    private AnimationTimer gameLoop;
 
     private final Map<String, Player> players = new ConcurrentHashMap<>();
     private final Set<KeyCode> pressedKeys = ConcurrentHashMap.newKeySet();
@@ -189,6 +191,23 @@ public class GameScreen extends BorderPane {
         networkService.sendMove(playerX, playerY);
     }
 
+    public void cleanup() {
+        // 1. Останавливаем игровой цикл
+        if (gameLoop != null) {
+            gameLoop.stop();
+        }
+
+        // 2. Отключаем обработчики клавиш
+        gameCanvas.setOnKeyPressed(null);
+        gameCanvas.setOnKeyReleased(null);
+        pressedKeys.clear();
+
+        // 3. Отписываемся от сетевых сообщений (если есть подписка)
+        // Например: networkService.unsubscribe(this);
+
+        System.out.println("GameScreen: ресурсы очищены");
+    }
+
     private void renderGame() {
         // Очистка холста
         gc.clearRect(0, 0, gameCanvas.getWidth(), gameCanvas.getHeight());
@@ -246,4 +265,5 @@ public class GameScreen extends BorderPane {
         gc.setStroke(Color.BLACK);
         gc.strokeOval(playerX - 10, playerY - 10, 20, 20);
     }
+
 }

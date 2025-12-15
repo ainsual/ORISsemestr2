@@ -7,7 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class GameServer {
-    private static final int PORT = 5555;
+    private static final int PORT = 5556;
     private ServerSocket serverSocket;
     private final ExecutorService clientThreads = Executors.newCachedThreadPool();
     private final GameRoom gameRoom;

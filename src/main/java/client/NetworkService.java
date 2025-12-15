@@ -93,7 +93,6 @@ public class NetworkService {
             Message msg = new Message(MessageTypes.CONNECT);
             System.out.println("Server received message");
             msg.setPlayerName(playerName);
-            msg.setPlayerId(UUID.randomUUID().toString());
 
             String json = msg.toJson();
             System.out.println("[CLIENT][DEBUG] SENDING: " + json);
