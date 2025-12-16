@@ -32,7 +32,6 @@ public class NetworkService {
             msg.setY(y);
 
             String json = msg.toJson();
-            System.out.println("[CLIENT][DEBUG] SENDING MOVE: " + json);
             sendRawMessage(json);
         } catch (Exception e) {
             handleConnectionError(e);
@@ -91,14 +90,11 @@ public class NetworkService {
         if (!connected) return;
         try {
             Message msg = new Message(MessageTypes.CONNECT);
-            System.out.println("Server received message");
             msg.setPlayerName(playerName);
 
             String json = msg.toJson();
-            System.out.println("[CLIENT][DEBUG] SENDING: " + json);
             sendRawMessage(json);
 
-            System.out.println("Server formatted message");
         } catch (Exception e) {
             handleConnectionError(e);
         }
@@ -110,11 +106,9 @@ public class NetworkService {
         byte[] bytes = messageWithNewline.getBytes(StandardCharsets.UTF_8);
         outputStream.write(bytes);
         outputStream.flush();
-        System.out.println("[CLIENT][DEBUG] Sent bytes: " + bytes.length);
     }
 
     private void receiveMessages() {
-        System.out.println("[CLIENT][DEBUG] Starting message receiving thread");
         byte[] buffer = new byte[4096];
         StringBuilder currentMessage = new StringBuilder();
 
@@ -122,8 +116,6 @@ public class NetworkService {
             int bytesRead;
             while (connected && (bytesRead = inputStream.read(buffer)) != -1) {
                 String received = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
-                System.out.println("[CLIENT][DEBUG] Received bytes: " + bytesRead);
-                System.out.println("[CLIENT][DEBUG] Raw  [" + received + "]");
 
                 currentMessage.append(received);
 
@@ -134,11 +126,9 @@ public class NetworkService {
                     currentMessage.delete(0, endIndex + 1);
 
                     if (!json.isEmpty()) {
-                        System.out.println("[CLIENT][DEBUG] RECEIVED FROM SERVER: " + json);
 
                         try {
                             Message message = Message.fromJson(json);
-                            System.out.println("[CLIENT][DEBUG] Parsed message type: " + message.getType());
                             Platform.runLater(() -> messageHandler.accept(message));
                         } catch (Exception e) {
                             System.err.println("[CLIENT][ERROR] Parsing error: " + e.getMessage());

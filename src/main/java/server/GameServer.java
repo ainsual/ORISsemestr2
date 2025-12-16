@@ -21,11 +21,9 @@ public class GameServer {
     public void start() {
         try {
             serverSocket = new ServerSocket(PORT);
-            System.out.println("Сервер запущен на порту " + PORT);
 
             while (!Thread.currentThread().isInterrupted()) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("Новое подключение: " + clientSocket.getInetAddress());
 
                 ClientHandler handler = new ClientHandler(clientSocket, gameRoom);
                 clientThreads.submit(handler);

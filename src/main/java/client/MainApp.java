@@ -51,8 +51,6 @@ public class MainApp extends Application {
     }
 
     private void handleServerMessage(common.Message message) {
-        System.out.println("[CLIENT] Получено сообщение: " + message.getType());
-
         Platform.runLater(() -> {
             switch (message.getType()) {
                 case CONNECT:
@@ -161,9 +159,8 @@ public class MainApp extends Application {
 
         new Thread(() -> {
             networkService.disconnect();
-
             try {
-                Thread.sleep(2000);
+                Thread.sleep(10_000);
             } catch (InterruptedException ignored) {}
 
             Platform.runLater(() -> {

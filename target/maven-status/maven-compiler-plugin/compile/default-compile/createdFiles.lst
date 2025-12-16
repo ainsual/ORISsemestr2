@@ -11,7 +11,6 @@ server\Scoreboard.class
 client\screens\ConnectionScreen.class
 client\MainApp.class
 server\ClientHandler.class
-common\Message$ScoreboardEntry.class
 server\GameRoom.class
 common\Player.class
 client\NetworkService.class

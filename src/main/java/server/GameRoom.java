@@ -23,6 +23,7 @@ public class GameRoom {
     private boolean isRoundActive = false;
     private boolean gameStarted = false;
     private double matchStartCountdown = 1000;
+    private byte[] field; // GRID_W * GRID_H
 
     // Таймеры
     private ScheduledFuture<?> roundTimer;
@@ -33,7 +34,7 @@ public class GameRoom {
 
     public GameRoom(Scoreboard scoreboard) {
         this.scoreboard = scoreboard;
-        //generateSpots();
+        generateField();
     }
 
     // Регистрация клиента для рассылки обновлений
@@ -47,12 +48,6 @@ public class GameRoom {
         System.out.println("[ROOM] Удален клиент из обновлений. Всего клиентов: " + clients.size());
     }
 
-//    private void generateSpots() {
-//        spotColors.clear();
-//        for (int i = 0; i < GameSettings.NUM_SPOTS; i++) {
-//            spotColors.add(GameSettings.ROUND_COLORS[random.nextInt(GameSettings.ROUND_COLORS.length)]);
-//        }
-//    }
 
     public synchronized void addPlayer(Player player) {
         if (gameStarted) {
@@ -131,6 +126,8 @@ public class GameRoom {
         roundDuration = calculateRoundDuration();
         roundTimeLeft = roundDuration;
         isRoundActive = true;
+        generateField();
+
 
         // Сброс позиций игроков
         for (Player player : players.values()) {
@@ -207,18 +204,14 @@ public class GameRoom {
     }
 
     private void endGame(Player winner) {
-        resetParamsGame();
-        round = 0;
-        currentTargetColor = "#FFFFFF";
         if (winner != null) {
             System.out.println("[ROOM] Игра завершена. Победитель: " + winner.getName());
-            scoreboard.addWin(winner.getName());
+            scoreboard.addWin(winner.getName(), round);
         } else {
             System.out.println("[ROOM] Игра завершена. Ничья.");
         }
-
+        resetParamsGame();
         broadcastGameOver(winner);
-        // Сброс комнаты через 5 секунд
 
     }
 
@@ -226,6 +219,9 @@ public class GameRoom {
         gameStarted = false;
         isRoundActive = false;
         currentTargetColor = "#FFFFFF";
+        round = 1;
+        roundDuration = 0;
+
         System.out.println("[ROOM] Сброс комнаты");
         for (String playerId: players.keySet()) {
             removePlayer(playerId);
@@ -236,11 +232,16 @@ public class GameRoom {
     }
 
     private String getSpotColorAt(double x, double y) {
-        int gridX = (int) (x / GameSettings.GRID_SIZE);
-        int gridY = (int) (y / GameSettings.GRID_SIZE);
-        int index = (gridX + gridY) % GameSettings.ROUND_COLORS.length;
+        int gx = (int) (x / GameSettings.CELL_SIZE);
+        int gy = (int) (y / GameSettings.CELL_SIZE);
+
+        gx = Math.max(0, Math.min(gx, GameSettings.GRID_W - 1));
+        gy = Math.max(0, Math.min(gy, GameSettings.GRID_H - 1));
+
+        int index = field[gy * GameSettings.GRID_W + gx];
         return GameSettings.ROUND_COLORS[index];
     }
+
 
     public void handlePlayerMove(String playerId, double x, double y) {
         Player player = players.get(playerId);
@@ -275,6 +276,7 @@ public class GameRoom {
         msg.setGameStarted(gameStarted);
         msg.setIsRoundActive(isRoundActive);
         msg.setMatchStartCountdown(matchStartCountdown);
+        msg.setField(field);
 
         // Передаем клонов для потокобезопасности
         List<Player> playerList = new ArrayList<>();
@@ -291,17 +293,20 @@ public class GameRoom {
     }
 
     private void broadcastRoundStart() {
-        Message msg = new Message();
+        Message msg = new Message(MessageTypes.ROUND_START);
         msg.setTargetColor(currentTargetColor);
         msg.setDuration(roundDuration);
+        msg.setField(field);
         broadcastMessage(msg);
     }
 
     private void broadcastGameStart() {
+        generateField();
         Message msg = new Message(MessageTypes.MATCH_START);
         System.out.println("[ROOM] MATCH__START");
         msg.setTargetColor(currentTargetColor);
         msg.setDuration(roundDuration);
+        msg.setField(field);
         broadcastMessage(msg);
     }
 
@@ -323,4 +328,59 @@ public class GameRoom {
         msg.setScores(entries);
         broadcastMessage(msg);
     }
+
+    private void generateField() {
+        int w = GameSettings.GRID_W;
+        int h = GameSettings.GRID_H;
+        field = new byte[w * h];
+
+        Random r = new Random();
+        int numColors = GameSettings.ROUND_COLORS.length;
+
+        // 1️⃣ Сначала гарантируем, что каждый цвет будет хотя бы один раз
+        for (byte colorIndex = 0; colorIndex < numColors; colorIndex++) {
+            int cx = r.nextInt(w);
+            int cy = r.nextInt(h);
+            int radius = 2 + r.nextInt(4);
+
+            for (int y = -radius; y <= radius; y++) {
+                for (int x = -radius; x <= radius; x++) {
+                    int nx = cx + x;
+                    int ny = cy + y;
+
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+
+                    double dist = Math.sqrt(x * x + y * y);
+                    if (dist <= radius) {
+                        field[ny * w + nx] = colorIndex;
+                    }
+                }
+            }
+        }
+
+        // 2️⃣ Добавляем остальные случайные пятна
+        int blobs = 10 + r.nextInt(6); // дополнительные пятна
+        for (int i = 0; i < blobs; i++) {
+            int cx = r.nextInt(w);
+            int cy = r.nextInt(h);
+            int radius = 3 + r.nextInt(6);
+            byte colorIndex = (byte) r.nextInt(numColors);
+
+            for (int y = -radius; y <= radius; y++) {
+                for (int x = -radius; x <= radius; x++) {
+                    int nx = cx + x;
+                    int ny = cy + y;
+
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+
+                    double dist = Math.sqrt(x * x + y * y);
+                    if (dist <= radius) {
+                        field[ny * w + nx] = colorIndex;
+                    }
+                }
+            }
+        }
+    }
+
+
 }

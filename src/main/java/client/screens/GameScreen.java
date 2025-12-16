@@ -8,7 +8,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
@@ -18,37 +17,47 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class GameScreen extends BorderPane {
+
     private final MainApp app;
     private final NetworkService networkService;
+
+    // Игровой холст
     private final Canvas gameCanvas;
     private final GraphicsContext gc;
+
+    // Компас
+    private final Canvas compassCanvas;
+    private final GraphicsContext compassGc;
+    private double compassAngle = 0; // текущее значение угла компаса
+    private double playerAngle = 0;
+
+    // UI
     private final Label roundLabel;
     private final Label timerLabel;
     private final Label colorLabel;
     private final Label statusLabel;
-    private AnimationTimer gameLoop;
 
     private final Map<String, Player> players = new ConcurrentHashMap<>();
     private final Set<KeyCode> pressedKeys = ConcurrentHashMap.newKeySet();
+
     private String playerId;
-    private int currentRound = 0;
-    private double roundTimeLeft = 0;
-    private double roundDuration = 0;
+    private int currentRound;
+    private double roundTimeLeft;
+    private double roundDuration;
     private String currentTargetColor = "";
-    private boolean isRoundActive = false;
-    private boolean gameStarted = false;
-    private double matchStartCountdown = 0;
+
+    private boolean isRoundActive;
+    private boolean gameStarted;
+    private boolean isAlive = true;
 
     private double playerX = GameSettings.WORLD_WIDTH / 2;
     private double playerY = GameSettings.WORLD_HEIGHT / 2;
-    private boolean isAlive = true;
+    private byte[] field; // GRID_W * GRID_H
 
     public GameScreen(MainApp app, NetworkService networkService) {
         this.app = app;
@@ -56,47 +65,49 @@ public class GameScreen extends BorderPane {
 
         setPadding(new Insets(10));
 
-        // Игровой холст
         gameCanvas = new Canvas(GameSettings.WORLD_WIDTH, GameSettings.WORLD_HEIGHT);
         gc = gameCanvas.getGraphicsContext2D();
 
-        // Панель статуса сверху
-        HBox statusPanel = new HBox(15);
-        statusPanel.setAlignment(Pos.CENTER);
-        statusPanel.setStyle("-fx-padding: 5; -fx-background-color: #f0f0f0;");
+        compassCanvas = new Canvas(100, 100);
+        compassGc = compassCanvas.getGraphicsContext2D();
+
+        HBox topPanel = new HBox(15);
+        topPanel.setAlignment(Pos.CENTER);
+        topPanel.setStyle("-fx-padding: 5; -fx-background-color: #f0f0f0;");
 
         roundLabel = new Label("Раунд: 0");
         roundLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
 
-        timerLabel = new Label("Времени осталось: 0.0");
+        timerLabel = new Label("Время: 0.0");
         timerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
         timerLabel.setTextFill(Color.RED);
 
-        colorLabel = new Label("Цвет: ...");
+        colorLabel = new Label("Цвет: -");
         colorLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
 
-        statusPanel.getChildren().addAll(roundLabel, timerLabel, colorLabel);
+        topPanel.getChildren().addAll(roundLabel, timerLabel, colorLabel);
 
-        // Нижняя панель со статусом
-        statusLabel = new Label("Готовьтесь к раунду...");
-        statusLabel.setAlignment(Pos.CENTER);
-        statusLabel.setFont(Font.font("Arial", FontWeight.BOLD, 20));
-        statusLabel.setTextFill(Color.DARKGREEN);
+        statusLabel = new Label("Ожидание начала матча...");
+        statusLabel.setFont(Font.font("Arial", FontWeight.BOLD, 18));
 
         VBox bottomPanel = new VBox(statusLabel);
         bottomPanel.setAlignment(Pos.CENTER);
-        bottomPanel.setStyle("-fx-padding: 10;");
+        bottomPanel.setPadding(new Insets(10));
 
-        setTop(statusPanel);
-        setCenter(gameCanvas);
+        BorderPane centerPane = new BorderPane();
+        centerPane.setCenter(gameCanvas);
+        centerPane.setTop(compassCanvas);
+        BorderPane.setAlignment(compassCanvas, Pos.TOP_RIGHT);
+        BorderPane.setMargin(compassCanvas, new Insets(10));
+
+        setTop(topPanel);
+        setCenter(centerPane);
         setBottom(bottomPanel);
 
-        // Обработка клавиш
         gameCanvas.setFocusTraversable(true);
         gameCanvas.setOnKeyPressed(e -> pressedKeys.add(e.getCode()));
         gameCanvas.setOnKeyReleased(e -> pressedKeys.remove(e.getCode()));
 
-        // Игровой цикл
         new AnimationTimer() {
             @Override
             public void handle(long now) {
@@ -105,7 +116,6 @@ public class GameScreen extends BorderPane {
             }
         }.start();
 
-        // Фокус на холсте
         gameCanvas.requestFocus();
     }
 
@@ -113,157 +123,171 @@ public class GameScreen extends BorderPane {
         currentRound = message.getRound();
         roundTimeLeft = message.getTimeLeft();
         roundDuration = message.getDuration();
-        currentTargetColor = message.getTargetColor() != null ?
-                message.getTargetColor() : "#FFFFFF";
+        currentTargetColor = message.getTargetColor();
         isRoundActive = message.isIsRoundActive();
         gameStarted = message.isGameStarted();
-        matchStartCountdown = message.getMatchStartCountdown();
+        if (message.getField() != null) {
+            field = message.getField();
+        }
 
-        // Обновление позиций игроков, но локальный игрок не добавляется в общий список
+
+
+
         players.clear();
         if (message.getPlayers() != null) {
-            for (Player player : message.getPlayers()) {
-                // Добавляем в общий список ТОЛЬКО других игроков
-                if (!player.getId().equals(playerId)) {
-                    players.put(player.getId(), player);
+            for (Player p : message.getPlayers()) {
+                if (!p.getId().equals(playerId)) {
+                    players.put(p.getId(), p);
                 } else {
-                    // Обновление локального игрока
-                    playerX = player.getX();
-                    playerY = player.getY();
-                    isAlive = player.isAlive();
+                    playerX = p.getX();
+                    playerY = p.getY();
+                    isAlive = p.isAlive();
                 }
             }
         }
 
-        // Обновление UI
         roundLabel.setText("Раунд: " + currentRound);
-        if (!gameStarted) {
-            timerLabel.setText(String.format("Время до начала матча: %.1f", matchStartCountdown));
-            timerLabel.setTextFill(Color.BLUE); // например, синий для ожидания
-        } else if (isRoundActive) {
-            timerLabel.setText(String.format("Времени до конца раунда: %.1f", roundTimeLeft));
-            timerLabel.setTextFill(Color.RED); // красный — активный отсчёт
+
+        if (gameStarted && isRoundActive) {
+            timerLabel.setText(String.format("Время: %.1f", roundTimeLeft));
+            timerLabel.setTextFill(Color.RED);
         }
 
-        if (currentTargetColor != null && !currentTargetColor.isEmpty()) {
+        if (currentTargetColor != null) {
             colorLabel.setText("Цвет: " + currentTargetColor);
             colorLabel.setTextFill(Color.web(currentTargetColor));
         }
-
-        if (!isRoundActive && gameStarted) {
-            statusLabel.setText(isAlive ? "Вы выжили!" : "Вы проиграли!");
-            statusLabel.setTextFill(isAlive ? Color.DARKGREEN : Color.DARKRED);
-        } else if (!gameStarted) {
-            statusLabel.setText("Ожидание начала матча...");
-            statusLabel.setTextFill(Color.DARKBLUE);
-        }
     }
-
-    public void handleRoundStart(Message message) {
-        currentTargetColor = message.getTargetColor();
-        roundDuration = message.getDuration();
-        roundTimeLeft = roundDuration;
-        isRoundActive = true;
-
-        colorLabel.setText("Цвет: " + currentTargetColor);
-        colorLabel.setTextFill(Color.web(currentTargetColor));
-        statusLabel.setText("Встаньте на " + currentTargetColor);
-        statusLabel.setTextFill(Color.DARKBLUE);
-    }
-
 
     private void updateGame() {
-        if (!isAlive || !isRoundActive || !gameStarted) return;
+        if (!gameStarted || !isRoundActive || !isAlive) return;
 
-        // Обработка движения
-        double dx = 0, dy = 0;
+        double dx = 0;
+        double dy = 0;
 
         if (pressedKeys.contains(KeyCode.W) || pressedKeys.contains(KeyCode.UP)) dy -= GameSettings.MOVE_SPEED;
         if (pressedKeys.contains(KeyCode.S) || pressedKeys.contains(KeyCode.DOWN)) dy += GameSettings.MOVE_SPEED;
         if (pressedKeys.contains(KeyCode.A) || pressedKeys.contains(KeyCode.LEFT)) dx -= GameSettings.MOVE_SPEED;
         if (pressedKeys.contains(KeyCode.D) || pressedKeys.contains(KeyCode.RIGHT)) dx += GameSettings.MOVE_SPEED;
 
-        // Обновление позиции с ограничением границ
+        if (dx != 0 || dy != 0) {
+            double targetAngle = Math.atan2(dy, dx);
+            // Сглаживание: двигаем compassAngle к targetAngle на 0.1 радиана за тик
+            compassAngle = smoothAngle(compassAngle, targetAngle, 0.1);
+        }
+
+
+
         playerX = Math.max(10, Math.min(playerX + dx, GameSettings.WORLD_WIDTH - 10));
         playerY = Math.max(10, Math.min(playerY + dy, GameSettings.WORLD_HEIGHT - 10));
 
-        // Отправка позиции на сервер
         networkService.sendMove(playerX, playerY);
     }
 
-    public void cleanup() {
-        // 1. Останавливаем игровой цикл
-        if (gameLoop != null) {
-            gameLoop.stop();
-        }
-
-        // 2. Отключаем обработчики клавиш
-        gameCanvas.setOnKeyPressed(null);
-        gameCanvas.setOnKeyReleased(null);
-        pressedKeys.clear();
-
-        // 3. Отписываемся от сетевых сообщений (если есть подписка)
-        // Например: networkService.unsubscribe(this);
-
-        System.out.println("GameScreen: ресурсы очищены");
-    }
-
     private void renderGame() {
-        // Очистка холста
         gc.clearRect(0, 0, gameCanvas.getWidth(), gameCanvas.getHeight());
 
-        // Отрисовка пятен
         drawSpots();
-
-        // Отрисовка игроков
         drawPlayers();
+        drawCompass();
 
-        // Отрисовка границ
         gc.setStroke(Color.BLACK);
-        gc.setLineWidth(2);
         gc.strokeRect(0, 0, GameSettings.WORLD_WIDTH, GameSettings.WORLD_HEIGHT);
-
-        // Отображение текущего цвета в углу
-        if (currentTargetColor != null && !currentTargetColor.isEmpty()) {
-            gc.setFill(Color.web(currentTargetColor));
-            gc.fillRect(GameSettings.WORLD_WIDTH - 60, 10, 50, 50);
-            gc.setStroke(Color.BLACK);
-            gc.strokeRect(GameSettings.WORLD_WIDTH - 60, 10, 50, 50);
-        }
     }
 
     private void drawSpots() {
-        // Генерация пятен на основе координат
-        for (int y = 0; y < GameSettings.WORLD_HEIGHT; y += GameSettings.GRID_SIZE) {
-            for (int x = 0; x < GameSettings.WORLD_WIDTH; x += GameSettings.GRID_SIZE) {
-                // Алгоритм определения цвета пятна
-                int gridX = (int)(x / GameSettings.GRID_SIZE);
-                int gridY = (int)(y / GameSettings.GRID_SIZE);
-                int index = (gridX + gridY) % GameSettings.ROUND_COLORS.length;
-                String color = GameSettings.ROUND_COLORS[index];
+        if (field == null) {
+            System.out.println("no spots");
+            return;
+        }
+        int w = GameSettings.GRID_W;
 
-                gc.setFill(Color.web(color));
-                gc.fillRect(x, y, GameSettings.GRID_SIZE, GameSettings.GRID_SIZE);
+        for (int y = 0; y < GameSettings.GRID_H; y++) {
+            for (int x = 0; x < GameSettings.GRID_W; x++) {
+                int idx = field[y * w + x];
+                gc.setFill(Color.web(GameSettings.ROUND_COLORS[idx]));
+                gc.fillRect(
+                        x * GameSettings.CELL_SIZE,
+                        y * GameSettings.CELL_SIZE,
+                        GameSettings.CELL_SIZE,
+                        GameSettings.CELL_SIZE
+                );
             }
         }
     }
 
+
     private void drawPlayers() {
-        // Сначала рисуем других игроков (красных)
-        for (Player player : players.values()) {
-            if (!player.getId().equals(playerId)) {
-                gc.setFill(player.isAlive() ? Color.RED : Color.GRAY);
-                gc.fillOval(player.getX() - 10, player.getY() - 10, 20, 20);
-                gc.setStroke(Color.BLACK);
-                gc.strokeOval(player.getX() - 10, player.getY() - 10, 20, 20);
-            }
+        for (Player p : players.values()) {
+            gc.setFill(p.isAlive() ? Color.RED : Color.GRAY);
+            gc.fillOval(p.getX() - 10, p.getY() - 10, 20, 20);
         }
 
-        // Затем поверх них рисуем своего игрока (синего)
         gc.setFill(isAlive ? Color.BLUE : Color.GRAY);
         gc.fillOval(playerX - 10, playerY - 10, 20, 20);
-        gc.setStroke(Color.BLACK);
-        gc.strokeOval(playerX - 10, playerY - 10, 20, 20);
+    }
+
+    private void drawCompass() {
+        double w = compassCanvas.getWidth();
+        double h = compassCanvas.getHeight();
+        double cx = w / 2;
+        double cy = h / 2;
+        double r = w / 2 - 10;
+
+        // Очищаем холст
+        compassGc.clearRect(0, 0, w, h);
+
+        // Рисуем круг компаса
+        compassGc.setStroke(Color.BLACK);
+        compassGc.setLineWidth(2);
+        compassGc.strokeOval(5, 5, w - 10, h - 10);
+
+        // Плавное приближение compassAngle к playerAngle
+        compassAngle = smoothAngle(compassAngle, playerAngle, 0.1);
+
+        // Вычисляем конец стрелки
+        double x = cx + Math.cos(compassAngle) * r;
+        double y = cy + Math.sin(compassAngle) * r;
+
+        // Рисуем стрелку
+        compassGc.setStroke(Color.BLUE);
+        compassGc.setLineWidth(3);
+        compassGc.strokeLine(cx, cy, x, y);
+
+        // Рисуем центр компаса
+        compassGc.setFill(Color.BLACK);
+        compassGc.fillOval(cx - 4, cy - 4, 8, 8);
+    }
+
+    // Метод для плавного приближения угла
+    private double smoothAngle(double current, double target, double maxStep) {
+        double diff = target - current;
+
+        // корректировка разницы в диапазон [-PI, PI]
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+
+        if (Math.abs(diff) <= maxStep) {
+            return target; // достигли цели
+        } else {
+            return current + Math.signum(diff) * maxStep;
+        }
+    }
+
+
+
+    public void cleanup() {
+        gameCanvas.setOnKeyPressed(null);
+        gameCanvas.setOnKeyReleased(null);
+        pressedKeys.clear();
+    }
+    public void handleRoundStart(Message message) {
+        currentTargetColor = message.getTargetColor();
+        roundDuration = message.getDuration();
+        roundTimeLeft = roundDuration;
+        isRoundActive = true;
+        field = message.getField();
+        statusLabel.setText("Играем");
     }
 
 }

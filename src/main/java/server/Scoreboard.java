@@ -22,8 +22,8 @@ public class Scoreboard {
         loadScores();
     }
 
-    public synchronized void addWin(String playerName) {
-        scores.put(playerName, scores.getOrDefault(playerName, 0) + 1);
+    public synchronized void addWin(String playerName, int round) {
+        scores.put(playerName, scores.getOrDefault(playerName, 0) + round - 1);
         saveScores();
     }
 

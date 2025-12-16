@@ -135,7 +135,6 @@ public class ClientHandler implements Runnable {
                 byte[] bytes = messageWithNewline.getBytes(StandardCharsets.UTF_8);
                 outputStream.write(bytes);
                 outputStream.flush();
-                System.out.println("[SERVER][DEBUG] Отправлено сообщение: " + message.getType());
             }
         } catch (Exception e) {
             System.err.println("[SERVER][ERROR] Ошибка отправки: " + e.getMessage());

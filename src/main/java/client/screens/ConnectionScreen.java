@@ -74,7 +74,6 @@ public class ConnectionScreen extends VBox {
         }
 
         statusLabel.setText("Подключение...");
-        connectButton.setDisable(false);
 
         // Подключение в отдельном потоке
         new Thread(() -> {
@@ -89,5 +88,7 @@ public class ConnectionScreen extends VBox {
                 });
             }
         }).start();
+        connectButton.setDisable(false);
+        statusLabel.setText("Повторим?");
     }
 }

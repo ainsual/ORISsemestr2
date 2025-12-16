@@ -22,6 +22,7 @@ public class Message implements Serializable {
     private common.ScoreboardEntry[] scores;
     private List<Player> players;
     private double matchStartCountdown;
+    private byte[] field;
 
     // Пустой конструктор для Gson
     public Message() {}
@@ -81,6 +82,14 @@ public class Message implements Serializable {
     public double getMatchStartCountdown() { return matchStartCountdown; }
     public void setMatchStartCountdown(double matchStartCountdown) { this.matchStartCountdown = matchStartCountdown; }
 
+    public byte[] getField() {
+        return field;
+    }
+
+    public void setField(byte[] field) {
+        this.field = field;
+    }
+
     // Сериализация/десериализация
     private static final Gson gson = new Gson();
 
@@ -92,21 +101,5 @@ public class Message implements Serializable {
         return gson.toJson(this);
     }
 
-    // Вложенный класс для рейтинга
-    public static class ScoreboardEntry {
-        private String playerName;
-        private int wins;
 
-        public ScoreboardEntry() {}
-
-        public ScoreboardEntry(String playerName, int wins) {
-            this.playerName = playerName;
-            this.wins = wins;
-        }
-
-        public String getPlayerName() { return playerName; }
-        public void setPlayerName(String playerName) { this.playerName = playerName; }
-        public int getWins() { return wins; }
-        public void setWins(int wins) { this.wins = wins; }
-    }
 }
