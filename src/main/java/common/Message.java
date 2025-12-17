@@ -23,6 +23,7 @@ public class Message implements Serializable {
     private List<Player> players;
     private double matchStartCountdown;
     private byte[] field;
+    private String reason;
 
     // Пустой конструктор для Gson
     public Message() {
@@ -167,6 +168,9 @@ public class Message implements Serializable {
     public void setField(byte[] field) {
         this.field = field;
     }
+
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
 
     // Сериализация/десериализация
     private static final Gson gson = new Gson();

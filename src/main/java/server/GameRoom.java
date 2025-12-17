@@ -418,4 +418,8 @@ public class GameRoom {
             field[y * w + x] = randomColor;
         }
     }
+
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
 }

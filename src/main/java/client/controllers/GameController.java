@@ -323,11 +323,6 @@ public class GameController {
 
     private void updateGame() {
         if (!gameStarted || !isRoundActive || !isAlive || isMatchStarting) {
-            if (pressedKeys.size() > 0) {
-                System.out.println("[DEBUG] Клавиши нажаты, но движение заблокировано. Состояние: " +
-                        "gameStarted=" + gameStarted + ", isRoundActive=" + isRoundActive +
-                        ", isAlive=" + isAlive + ", isMatchStarting=" + isMatchStarting);
-            }
             return;
         }
 
@@ -346,7 +341,6 @@ public class GameController {
         if (dx != 0 || dy != 0) {
             double targetAngle = Math.atan2(dy, dx);
             compassAngle = smoothAngle(compassAngle, targetAngle, 0.1);
-            System.out.println("[DEBUG] Движение: dx=" + dx + ", dy=" + dy + ", Нажатые клавиши: " + pressedKeys);
         }
 
         playerX = Math.max(10, Math.min(playerX + dx, GameSettings.WORLD_WIDTH - 10));

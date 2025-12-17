@@ -29,11 +29,12 @@ public class ClientHandler implements Runnable {
             case MessageTypes.CONNECT:
                 handleConnect(message);
                 break;
+                
             case MessageTypes.MOVE:
                 handleMove(message);
                 break;
             case MessageTypes.DISCONNECT:
-                running = false; // Просто останавливаем цикл обработки
+                disconnect(); // Просто останавливаем цикл обработки
                 break;
         }
     }
@@ -112,6 +113,15 @@ public class ClientHandler implements Runnable {
             return;
         }
 
+        // Проверка: если игра уже началась, отправляем отказ
+        if (gameRoom.isGameStarted()) {
+            System.out.println("[SERVER][DEBUG] Отказ в подключении: игра уже началась");
+            Message rejection = new Message(MessageTypes.JOIN_REJECTED);
+            rejection.setReason("Невозможно присоединиться: игра уже началась");
+            sendRawMessage(rejection.toJson());
+            return;
+        }
+
         playerName = message.getPlayerName().trim();
         playerId = UUID.randomUUID().toString();
         System.out.println("[SERVER][DEBUG] Новый игрок: " + playerName + " (ID: " + playerId + ")");
@@ -125,7 +135,6 @@ public class ClientHandler implements Runnable {
         response.setPlayerName(playerName);
 
         String jsonResponse = response.toJson();
-
         sendRawMessage(jsonResponse);
     }
 
@@ -179,4 +188,6 @@ public class ClientHandler implements Runnable {
             System.err.println("Ошибка при отключении клиента: " + e.getMessage());
         }
     }
+
+
 }

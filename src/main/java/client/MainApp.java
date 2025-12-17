@@ -4,16 +4,16 @@ import client.controllers.ConnectionController;
 import client.controllers.GameController;
 import client.controllers.GameOverController;
 import common.Message;
+import common.MessageTypes;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-
-import static common.MessageTypes.*;
 
 public class MainApp extends Application {
 
@@ -53,22 +53,42 @@ public class MainApp extends Application {
     private void handleServerMessage(Message message) {
         Platform.runLater(() -> {
             switch (message.getType()) {
-                case CONNECT:
+                case MessageTypes.CONNECT:
                     showGameScreen(message.getPlayerId());
                     break;
-                case GAME_STATE:
+                case MessageTypes.JOIN_REJECTED:
+                    handleJoinRejected(message);
+                    break;
+                case MessageTypes.GAME_STATE:
                     handleGameState(message);
                     break;
-                case ROUND_START:
+                case MessageTypes.ROUND_START:
                     handleRoundStart(message);
                     break;
-                case GAME_OVER:
+                case MessageTypes.GAME_OVER:
                     showGameOverScreen(message);
                     break;
-                case MATCH_START:
+                case MessageTypes.MATCH_START:
                     handleMatchStart(message);
                     break;
             }
+        });
+    }
+
+    private void handleJoinRejected(Message message) {
+        String reason = message.getReason();
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Невозможно подключиться");
+            alert.setHeaderText("Игра уже началась");
+            alert.setContentText(reason != null ? reason : "В этой комнате уже идет игра. Пожалуйста, выберите другую комнату.");
+            alert.showAndWait();
+
+            // Закрываем соединение и возвращаемся на экран подключения
+            if (networkService != null && networkService.isConnected()) {
+                networkService.disconnect();
+            }
+            showConnectionScreen();
         });
     }
 

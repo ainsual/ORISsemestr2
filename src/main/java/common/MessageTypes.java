@@ -9,4 +9,5 @@ public class MessageTypes {
     public static final String ROUND_START = "ROUND_START";
     public static final String MATCH_START = "MATCH_START";
     public static final String GAME_OVER = "GAME_OVER";
+    public static final String JOIN_REJECTED = "JOIN_REJECTED";
 }
