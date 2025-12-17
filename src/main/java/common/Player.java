@@ -8,7 +8,8 @@ public class Player {
     private boolean alive;
 
     // Конструкторы
-    public Player() {}
+    public Player() {
+    }
 
     public Player(String id, String name) {
         this.id = id;
@@ -19,20 +20,45 @@ public class Player {
     }
 
     // Геттеры и сеттеры
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public double getX() { return x; }
-    public void setX(double x) { this.x = x; }
+    public String getName() {
+        return name;
+    }
 
-    public double getY() { return y; }
-    public void setY(double y) { this.y = y; }
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    public boolean isAlive() { return alive; }
-    public void setAlive(boolean alive) { this.alive = alive; }
+    public double getX() {
+        return x;
+    }
+
+    public void setX(double x) {
+        this.x = x;
+    }
+
+    public double getY() {
+        return y;
+    }
+
+    public void setY(double y) {
+        this.y = y;
+    }
+
+    public boolean isAlive() {
+        return alive;
+    }
+
+    public void setAlive(boolean alive) {
+        this.alive = alive;
+    }
 
     // Клонирование для потокобезопасности
     public Player clone() {

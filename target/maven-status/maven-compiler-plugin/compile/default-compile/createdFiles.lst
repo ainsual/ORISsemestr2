@@ -1,13 +1,10 @@
 client\screens\GameScreen.class
+server\db\ScoreboardRepository.class
 common\MessageTypes.class
-client\screens\LobbyScreen.class
-server\Scoreboard$ScoreboardEntry.class
 common\ScoreboardEntry.class
-server\Scoreboard$1.class
 client\Launcher.class
 client\screens\GameScreen$1.class
 server\GameServer.class
-server\Scoreboard.class
 client\screens\ConnectionScreen.class
 client\MainApp.class
 server\ClientHandler.class

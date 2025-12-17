@@ -16,22 +16,20 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
 public class GameOverScreen extends BorderPane {
+
     private final MainApp app;
 
     public GameOverScreen(MainApp app, Message message) {
         this.app = app;
         setPadding(new Insets(20));
 
-        // Заголовок
         Label titleLabel = new Label("Игра окончена");
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        titleLabel.setAlignment(Pos.CENTER);
 
-        // Определение победителя
         Label winnerLabel = new Label();
         winnerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
 
-        if (message.getWinner() != null) {
+        if (message.getWinner() != null && !message.getWinner().isEmpty()) {
             winnerLabel.setText("Победитель: " + message.getWinner());
             winnerLabel.setStyle("-fx-text-fill: #27ae60;");
         } else {
@@ -39,36 +37,28 @@ public class GameOverScreen extends BorderPane {
             winnerLabel.setStyle("-fx-text-fill: #f39c12;");
         }
 
-        // Таблица рейтинга
         TableView<ScoreboardEntry> scoresTable = new TableView<>();
         scoresTable.setPrefWidth(400);
+        scoresTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         TableColumn<ScoreboardEntry, String> nameCol = new TableColumn<>("Игрок");
         nameCol.setCellValueFactory(new PropertyValueFactory<>("playerName"));
-        nameCol.setPrefWidth(250);
 
         TableColumn<ScoreboardEntry, Integer> winsCol = new TableColumn<>("Побед");
         winsCol.setCellValueFactory(new PropertyValueFactory<>("wins"));
-        winsCol.setPrefWidth(150);
 
         scoresTable.getColumns().addAll(nameCol, winsCol);
 
-        // Заполнение таблицы
-        if (message.getScores() != null) {
-            for (ScoreboardEntry entry : message.getScores()) {
-                scoresTable.getItems().add(new ScoreboardEntry(entry.getPlayerName(), entry.getWins()));
-            }
+        if (message.getScores() != null && !message.getScores().isEmpty()) {
+            scoresTable.getItems().setAll(message.getScores());
         }
 
-        // Кнопка возврата
         Button returnButton = new Button("Вернуться в главное меню");
-        returnButton.setOnAction(e -> app.showConnectionScreen());
         returnButton.setStyle("-fx-font-size: 16px; -fx-padding: 10px 20px;");
+        returnButton.setOnAction(e -> app.showConnectionScreen());
 
-        // Компоновка
-        VBox centerBox = new VBox(20);
+        VBox centerBox = new VBox(20, titleLabel, winnerLabel, scoresTable, returnButton);
         centerBox.setAlignment(Pos.CENTER);
-        centerBox.getChildren().addAll(titleLabel, winnerLabel, scoresTable, returnButton);
 
         setCenter(centerBox);
     }

@@ -19,57 +19,127 @@ public class Message implements Serializable {
     private boolean gameStarted;
     private boolean isRoundActive;
     private String winner;
-    private common.ScoreboardEntry[] scores;
+    private List<ScoreboardEntry> scores;
     private List<Player> players;
     private double matchStartCountdown;
     private byte[] field;
 
     // Пустой конструктор для Gson
-    public Message() {}
+    public Message() {
+    }
 
     public Message(String type) {
         this.type = type;
     }
 
     // Геттеры и сеттеры
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
+    public String getType() {
+        return type;
+    }
 
-    public String getPlayerId() { return playerId; }
-    public void setPlayerId(String playerId) { this.playerId = playerId; }
+    public void setType(String type) {
+        this.type = type;
+    }
 
-    public String getPlayerName() { return playerName; }
-    public void setPlayerName(String playerName) { this.playerName = playerName; }
+    public String getPlayerId() {
+        return playerId;
+    }
 
-    public double getX() { return x; }
-    public void setX(double x) { this.x = x; }
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
+    }
 
-    public double getY() { return y; }
-    public void setY(double y) { this.y = y; }
+    public String getPlayerName() {
+        return playerName;
+    }
 
-    public String getTargetColor() { return targetColor; }
-    public void setTargetColor(String targetColor) { this.targetColor = targetColor; }
+    public void setPlayerName(String playerName) {
+        this.playerName = playerName;
+    }
 
-    public int getRound() { return round; }
-    public void setRound(int round) { this.round = round; }
+    public double getX() {
+        return x;
+    }
 
-    public double getTimeLeft() { return timeLeft; }
-    public void setTimeLeft(double timeLeft) { this.timeLeft = timeLeft; }
+    public void setX(double x) {
+        this.x = x;
+    }
 
-    public double getDuration() { return duration; }
-    public void setDuration(double duration) { this.duration = duration; }
+    public double getY() {
+        return y;
+    }
 
-    public boolean isGameStarted() { return gameStarted; }
-    public void setGameStarted(boolean gameStarted) { this.gameStarted = gameStarted; }
+    public void setY(double y) {
+        this.y = y;
+    }
 
-    public boolean isIsRoundActive() { return isRoundActive; }
-    public void setIsRoundActive(boolean isRoundActive) { this.isRoundActive = isRoundActive; }
+    public String getTargetColor() {
+        return targetColor;
+    }
 
-    public String getWinner() { return winner; }
-    public void setWinner(String winner) { this.winner = winner; }
+    public void setTargetColor(String targetColor) {
+        this.targetColor = targetColor;
+    }
 
-    public common.ScoreboardEntry[] getScores() { return scores; }
-    public void setScores(common.ScoreboardEntry[] scores) { this.scores = scores; }
+    public int getRound() {
+        return round;
+    }
+
+    public void setRound(int round) {
+        this.round = round;
+    }
+
+    public double getTimeLeft() {
+        return timeLeft;
+    }
+
+    public void setTimeLeft(double timeLeft) {
+        this.timeLeft = timeLeft;
+    }
+
+    public double getDuration() {
+        return duration;
+    }
+
+    public void setDuration(double duration) {
+        this.duration = duration;
+    }
+
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
+
+    public void setGameStarted(boolean gameStarted) {
+        this.gameStarted = gameStarted;
+    }
+
+    public boolean isIsRoundActive() {
+        return isRoundActive;
+    }
+
+    public void setIsRoundActive(boolean isRoundActive) {
+        this.isRoundActive = isRoundActive;
+    }
+
+    public String getWinner() {
+        return winner;
+    }
+
+    public void setWinner(String winner) {
+        this.winner = winner;
+    }
+
+    public List<ScoreboardEntry> getScores() {
+        if (scores == null) {
+            scores = new ArrayList<>();
+        }
+        return scores;
+    }
+
+    public void setScores(List<ScoreboardEntry> scores) {
+        this.scores = scores;
+    }
+
 
     public List<Player> getPlayers() {
         if (players == null) {
@@ -77,10 +147,18 @@ public class Message implements Serializable {
         }
         return players;
     }
-    public void setPlayers(List<Player> players) { this.players = players; }
 
-    public double getMatchStartCountdown() { return matchStartCountdown; }
-    public void setMatchStartCountdown(double matchStartCountdown) { this.matchStartCountdown = matchStartCountdown; }
+    public void setPlayers(List<Player> players) {
+        this.players = players;
+    }
+
+    public double getMatchStartCountdown() {
+        return matchStartCountdown;
+    }
+
+    public void setMatchStartCountdown(double matchStartCountdown) {
+        this.matchStartCountdown = matchStartCountdown;
+    }
 
     public byte[] getField() {
         return field;

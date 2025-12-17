@@ -1,6 +1,9 @@
 package common;
 
-public class ScoreboardEntry {
+import java.io.Serializable;
+
+public class ScoreboardEntry implements Serializable {
+
     private String playerName;
     private int wins;
 
@@ -11,9 +14,19 @@ public class ScoreboardEntry {
         this.wins = wins;
     }
 
-    // Геттеры и сеттеры
-    public String getPlayerName() { return playerName; }
-    public void setPlayerName(String playerName) { this.playerName = playerName; }
-    public int getWins() { return wins; }
-    public void setWins(int wins) { this.wins = wins; }
+    public String getPlayerName() {
+        return playerName;
+    }
+
+    public void setPlayerName(String playerName) {
+        this.playerName = playerName;
+    }
+
+    public int getWins() {
+        return wins;
+    }
+
+    public void setWins(int wins) {
+        this.wins = wins;
+    }
 }

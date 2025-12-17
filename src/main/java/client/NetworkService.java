@@ -19,6 +19,8 @@ public class NetworkService {
     private OutputStream outputStream;
     private InputStream inputStream;
 
+    private String playerId;
+
     public NetworkService(Consumer<Message> messageHandler) {
         this.messageHandler = messageHandler;
     }
@@ -70,6 +72,8 @@ public class NetworkService {
         try {
             if (outputStream != null) {
                 Message msg = new Message(MessageTypes.DISCONNECT);
+                msg.setPlayerId(playerId);
+
                 sendRawMessage(msg.toJson());
             }
 
@@ -168,5 +172,9 @@ public class NetworkService {
 
     public boolean isConnected() {
         return connected;
+    }
+
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
     }
 }

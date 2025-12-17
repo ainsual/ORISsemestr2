@@ -4,13 +4,12 @@ C:\Users\karim\IdeaProjects\ColorRush\src\main\java\client\NetworkService.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\client\screens\ConnectionScreen.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\client\screens\GameOverScreen.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\client\screens\GameScreen.java
-C:\Users\karim\IdeaProjects\ColorRush\src\main\java\client\screens\LobbyScreen.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\common\GameSettings.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\common\Message.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\common\MessageTypes.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\common\Player.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\common\ScoreboardEntry.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\server\ClientHandler.java
+C:\Users\karim\IdeaProjects\ColorRush\src\main\java\server\db\ScoreboardRepository.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\server\GameRoom.java
 C:\Users\karim\IdeaProjects\ColorRush\src\main\java\server\GameServer.java
-C:\Users\karim\IdeaProjects\ColorRush\src\main\java\server\Scoreboard.java

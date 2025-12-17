@@ -24,6 +24,20 @@ public class ClientHandler implements Runnable {
         this.gameRoom = gameRoom;
     }
 
+    private void handleIncomingMessage(Message message) {
+        switch (message.getType()) {
+            case MessageTypes.CONNECT:
+                handleConnect(message);
+                break;
+            case MessageTypes.MOVE:
+                handleMove(message);
+                break;
+            case MessageTypes.DISCONNECT:
+                running = false; // Просто останавливаем цикл обработки
+                break;
+        }
+    }
+
     @Override
     public void run() {
         System.out.println("[SERVER][DEBUG] Начало обработки клиента: " + socket.getInetAddress());
@@ -32,21 +46,34 @@ public class ClientHandler implements Runnable {
             inputStream = socket.getInputStream();
 
             System.out.println("[SERVER][DEBUG] Потоки ввода/вывода созданы");
-
-            // Регистрируем клиента для получения обновлений
             gameRoom.registerClient(this);
-
             processMessages();
         } catch (Exception e) {
             System.err.println("[SERVER][ERROR] ОШИБКА: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             e.printStackTrace();
         } finally {
-            // Отменяем регистрацию перед отключением
+            // Удаляем игрока только если он был добавлен
+            if (playerId != null && gameRoom != null) {
+                gameRoom.removePlayer(playerId);
+            }
+
+            // Отменяем регистрацию клиента
             gameRoom.unregisterClient(this);
-            disconnect();
+
+            // Закрываем сокет
+            try {
+                if (socket != null && !socket.isClosed()) {
+                    System.out.println("[SERVER][DEBUG] Закрытие сокета");
+                    socket.close();
+                }
+            } catch (IOException e) {
+                System.err.println("Ошибка при закрытии сокета: " + e.getMessage());
+            }
+
             System.out.println("[SERVER][DEBUG] Клиент окончательно отключен: " + playerId);
         }
     }
+
 
     private void processMessages() throws IOException {
         byte[] buffer = new byte[4096];
@@ -83,20 +110,6 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleIncomingMessage(Message message) {
-        switch (message.getType()) {
-            case MessageTypes.CONNECT:
-                handleConnect(message);
-                break;
-            case MessageTypes.MOVE:
-                handleMove(message);
-                break;
-            case MessageTypes.DISCONNECT:
-                disconnect();
-                break;
-        }
-    }
-
     private void handleConnect(Message message) {
         System.out.println("[SERVER][DEBUG] Обработка CONNECT сообщения");
         if (message.getPlayerName() == null || message.getPlayerName().trim().isEmpty()) {
@@ -117,13 +130,12 @@ public class ClientHandler implements Runnable {
         response.setPlayerName(playerName);
 
         String jsonResponse = response.toJson();
-        System.out.println("[SERVER][DEBUG] ОТПРАВКА ОТВЕТА: " + jsonResponse);
+
         sendRawMessage(jsonResponse);
     }
 
     private void handleMove(Message message) {
         if (playerId != null) {
-            System.out.println("[SERVER][DEBUG] Обработка MOVE для игрока " + playerId + ": " + message.getX() + ", " + message.getY());
             gameRoom.handlePlayerMove(playerId, message.getX(), message.getY());
         }
     }

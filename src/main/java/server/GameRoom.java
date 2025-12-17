@@ -1,10 +1,7 @@
 package server;
 
-import common.GameSettings;
-import common.Message;
-import common.MessageTypes;
-import common.Player;
-import common.ScoreboardEntry;
+import common.*;
+import server.db.ScoreboardRepository;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -13,7 +10,7 @@ public class GameRoom {
     private final Map<String, Player> players = new ConcurrentHashMap<>();
     private final Random random = new Random();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-    private final Scoreboard scoreboard;
+    private final ScoreboardRepository scoreboard;
 
     // Состояние игры
     private int round = 0;
@@ -32,7 +29,7 @@ public class GameRoom {
     // Для рассылки обновлений
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
-    public GameRoom(Scoreboard scoreboard) {
+    public GameRoom(ScoreboardRepository scoreboard) {
         this.scoreboard = scoreboard;
         generateField();
     }
@@ -67,10 +64,20 @@ public class GameRoom {
     }
 
     public synchronized void removePlayer(String playerId) {
-        Player removed = players.remove(playerId);
-        if (removed != null) {
-            System.out.println("[ROOM] Удален игрок: " + removed.getName());
+        // Сначала удаляем игрока из карты и получаем его
+        Player player = players.remove(playerId);
+
+        // Проверяем, что игрок существует
+        if (player == null) {
+            System.out.println("[ROOM] Игрок с ID " + playerId + " не найден для удаления");
+            return;
         }
+
+        String name = player.getName();
+        int roundPlayer = Math.max(0, round - 1);
+        scoreboard.updateIfBetter(name, roundPlayer);
+
+        System.out.println("[ROOM] Удален игрок: " + name);
 
         // Если во время игры остался только один игрок
         if (gameStarted && players.size() < 2) {
@@ -93,7 +100,9 @@ public class GameRoom {
 
         matchStartTimer = scheduler.scheduleAtFixedRate(() -> {
             matchStartCountdown -= 0.1;
-
+            if (players.size() < 2) {
+                matchStartCountdown += 0.1;
+            }
             if (matchStartCountdown <= 0) {
                 startGame();
                 if (matchStartTimer != null) matchStartTimer.cancel(true);
@@ -129,15 +138,10 @@ public class GameRoom {
         generateField();
 
 
-        // Сброс позиций игроков
-        for (Player player : players.values()) {
-            player.setX(GameSettings.WORLD_WIDTH / 2);
-            player.setY(GameSettings.WORLD_HEIGHT / 2);
-            player.setAlive(true);
-        }
-
         System.out.println("[ROOM] Раунд " + round + " начался. Цвет: " + currentTargetColor +
-                ". Время: " + String.format("%.1f", roundDuration) + " сек");
+                ". Время: " + String.format("%.1f", roundDuration) + " сек" +
+                ". Время: " + String.format("%.1f", matchStartCountdown) + " сек"
+        );
 
         // Отправляем уведомление о начале раунда
         if (isStart) {
@@ -154,7 +158,7 @@ public class GameRoom {
         roundTimer = scheduler.scheduleAtFixedRate(() -> {
             roundTimeLeft -= 0.1;
 
-            if (roundTimeLeft <= 0) {
+            if (roundTimeLeft <= 0 || players.size() < 2) {
                 endRound();
                 if (roundTimer != null) roundTimer.cancel(true);
             } else {
@@ -178,7 +182,7 @@ public class GameRoom {
         for (Player player : players.values()) {
             if (player.isAlive()) {
                 String spotColor = getSpotColorAt(player.getX(), player.getY());
-                System.out.println("[ROOM Цвет игрока " + player.getName() + spotColor );
+                System.out.println("[ROOM Цвет игрока " + player.getName() + spotColor);
                 if (spotColor.equals(currentTargetColor)) {
                     survivors.add(player);
                     System.out.println("[ROOM] Игрок выжил: " + player.getName());
@@ -206,27 +210,31 @@ public class GameRoom {
     private void endGame(Player winner) {
         if (winner != null) {
             System.out.println("[ROOM] Игра завершена. Победитель: " + winner.getName());
-            scoreboard.addWin(winner.getName(), round);
+
+            // score = количество раундов
+            scoreboard.updateIfBetter(winner.getName(), round);
         } else {
             System.out.println("[ROOM] Игра завершена. Ничья.");
         }
-        resetParamsGame();
-        broadcastGameOver(winner);
 
+        broadcastGameOver(winner);
+        resetParamsGame();
     }
+
 
     public void resetParamsGame() {
         gameStarted = false;
         isRoundActive = false;
         currentTargetColor = "#FFFFFF";
-        round = 1;
-        roundDuration = 0;
+        round = 0;
+        roundDuration = calculateRoundDuration();
+        ;
+        matchStartCountdown = 1000;
 
         System.out.println("[ROOM] Сброс комнаты");
-        for (String playerId: players.keySet()) {
+        for (String playerId : players.keySet()) {
             removePlayer(playerId);
         }
-        players.clear();
 
 
     }
@@ -312,58 +320,63 @@ public class GameRoom {
 
     private void broadcastGameOver(Player winner) {
         Message msg = new Message(MessageTypes.GAME_OVER);
+
         if (winner != null) {
             msg.setWinner(winner.getName());
         }
 
-        // Получаем топ-10 игроков для отправки
-        List<server.Scoreboard.ScoreboardEntry> topScores = scoreboard.getTopScores(10);
-        ScoreboardEntry[] entries = new ScoreboardEntry[topScores.size()];
+        // Получаем ТОП-10 из SQLite
+        List<ScoreboardEntry> topScores = scoreboard.getTop(10);
 
-        for (int i = 0; i < topScores.size(); i++) {
-            server.Scoreboard.ScoreboardEntry entry = topScores.get(i);
-            entries[i] = new ScoreboardEntry(entry.getPlayerName(), entry.getWins());
-        }
-
-        msg.setScores(entries);
+        msg.setScores(topScores);
         broadcastMessage(msg);
     }
+
 
     private void generateField() {
         int w = GameSettings.GRID_W;
         int h = GameSettings.GRID_H;
         field = new byte[w * h];
 
+        // Инициализируем поле базовым цветом (например, первым цветом)
+        byte baseColor = 0;
+        for (int i = 0; i < w * h; i++) {
+            field[i] = baseColor;
+        }
+
         Random r = new Random();
         int numColors = GameSettings.ROUND_COLORS.length;
 
-        // 1️⃣ Сначала гарантируем, что каждый цвет будет хотя бы один раз
+        // 1. Гарантированное размещение каждого цвета
         for (byte colorIndex = 0; colorIndex < numColors; colorIndex++) {
-            int cx = r.nextInt(w);
-            int cy = r.nextInt(h);
-            int radius = 2 + r.nextInt(4);
+            // Размещаем минимум 3 пятна для каждого цвета
+            for (int blob = 0; blob < 3; blob++) {
+                int cx = r.nextInt(w);
+                int cy = r.nextInt(h);
+                int radius = 2 + r.nextInt(3); // Небольшие пятна для гарантированного размещения
 
-            for (int y = -radius; y <= radius; y++) {
-                for (int x = -radius; x <= radius; x++) {
-                    int nx = cx + x;
-                    int ny = cy + y;
+                for (int y = -radius; y <= radius; y++) {
+                    for (int x = -radius; x <= radius; x++) {
+                        int nx = cx + x;
+                        int ny = cy + y;
 
-                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
 
-                    double dist = Math.sqrt(x * x + y * y);
-                    if (dist <= radius) {
-                        field[ny * w + nx] = colorIndex;
+                        double dist = Math.sqrt(x * x + y * y);
+                        if (dist <= radius) {
+                            field[ny * w + nx] = colorIndex;
+                        }
                     }
                 }
             }
         }
 
-        // 2️⃣ Добавляем остальные случайные пятна
-        int blobs = 10 + r.nextInt(6); // дополнительные пятна
+        // 2. Добавляем случайные крупные пятна для разнообразия
+        int blobs = 8 + r.nextInt(12);
         for (int i = 0; i < blobs; i++) {
             int cx = r.nextInt(w);
             int cy = r.nextInt(h);
-            int radius = 3 + r.nextInt(6);
+            int radius = 4 + r.nextInt(8); // Крупные пятна
             byte colorIndex = (byte) r.nextInt(numColors);
 
             for (int y = -radius; y <= radius; y++) {
@@ -374,13 +387,35 @@ public class GameRoom {
                     if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
 
                     double dist = Math.sqrt(x * x + y * y);
-                    if (dist <= radius) {
+                    if (dist <= radius * 0.8) { // Используем эллипс для более естественных форм
                         field[ny * w + nx] = colorIndex;
                     }
                 }
             }
         }
+
+        // 3. Проверка и гарантия наличия всех цветов
+        boolean[] colorsPresent = new boolean[numColors];
+        for (int i = 0; i < w * h; i++) {
+            colorsPresent[field[i]] = true;
+        }
+
+        // Если какой-то цвет отсутствует - добавляем его принудительно
+        for (byte colorIndex = 0; colorIndex < numColors; colorIndex++) {
+            if (!colorsPresent[colorIndex]) {
+                int cx = r.nextInt(w);
+                int cy = r.nextInt(h);
+                field[cy * w + cx] = colorIndex;
+            }
+        }
+
+        // 4. Добавляем шум для естественности
+        int noisePoints = w * h / 20; // 5% ячеек
+        for (int i = 0; i < noisePoints; i++) {
+            int x = r.nextInt(w);
+            int y = r.nextInt(h);
+            byte randomColor = (byte) r.nextInt(numColors);
+            field[y * w + x] = randomColor;
+        }
     }
-
-
 }

@@ -1,5 +1,7 @@
 package server;
 
+import server.db.ScoreboardRepository;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -11,10 +13,10 @@ public class GameServer {
     private ServerSocket serverSocket;
     private final ExecutorService clientThreads = Executors.newCachedThreadPool();
     private final GameRoom gameRoom;
-    private final Scoreboard scoreboard;
+    private final ScoreboardRepository scoreboard;
 
     public GameServer() {
-        this.scoreboard = new Scoreboard();
+        this.scoreboard = new ScoreboardRepository();
         this.gameRoom = new GameRoom(scoreboard);
     }
 
