@@ -82,8 +82,6 @@ public class ClientHandler implements Runnable {
         int bytesRead;
         while (running && (bytesRead = inputStream.read(buffer)) != -1) {
             String received = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
-            System.out.println("[SERVER][DEBUG] Получено байт: " + bytesRead);
-            System.out.println("[SERVER][DEBUG] Необработанные данные: [" + received + "]");
 
             currentMessage.append(received);
 
@@ -94,11 +92,8 @@ public class ClientHandler implements Runnable {
                 currentMessage.delete(0, endIndex + 1);
 
                 if (!json.isEmpty()) {
-                    System.out.println("[SERVER][DEBUG] ПОЛУЧЕНО СООБЩЕНИЕ: " + json);
-
                     try {
                         Message message = Message.fromJson(json);
-                        System.out.println("[SERVER][DEBUG] Успешно распарсено сообщение типа: " + message.getType());
                         handleIncomingMessage(message);
                     } catch (Exception e) {
                         System.err.println("[SERVER][ERROR] Ошибка парсинга JSON: " + e.getMessage());

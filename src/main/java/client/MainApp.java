@@ -1,23 +1,30 @@
 package client;
 
-import client.screens.ConnectionScreen;
-import client.screens.GameOverScreen;
-import client.screens.GameScreen;
+import client.controllers.ConnectionController;
+import client.controllers.GameController;
+import client.controllers.GameOverController;
+import common.Message;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+
+import java.io.IOException;
 
 import static common.MessageTypes.*;
 
 public class MainApp extends Application {
 
     private Stage primaryStage;
-    private Scene mainScene;
-
     private NetworkService networkService;
 
-    // Убираем поля для хранения экранов - будем создавать новые экземпляры каждый раз
+    // Текущие контроллеры для доступа к их методам
+    private ConnectionController connectionController;
+    private GameController gameController;
+    private GameOverController gameOverController;
+
     private boolean isClosing = false;
     private boolean gameStarted = false;
     private boolean showCompass = true; // Значение по умолчанию
@@ -43,7 +50,7 @@ public class MainApp extends Application {
         primaryStage.show();
     }
 
-    private void handleServerMessage(common.Message message) {
+    private void handleServerMessage(Message message) {
         Platform.runLater(() -> {
             switch (message.getType()) {
                 case CONNECT:
@@ -65,109 +72,188 @@ public class MainApp extends Application {
         });
     }
 
-    private void handleGameState(common.Message message) {
+    private void handleGameState(Message message) {
         if (message.isGameStarted() && !gameStarted) {
             gameStarted = true;
         }
 
-        if (primaryStage.getScene() != null && primaryStage.getScene().getRoot() instanceof GameScreen) {
-            ((GameScreen) primaryStage.getScene().getRoot()).updateGameState(message);
+        // Обновляем игровое состояние только если GameController активен
+        if (gameController != null) {
+            gameController.updateGameState(message);
         }
     }
 
-    private void handleMatchStart(common.Message message) {
-        if (primaryStage.getScene() != null && !(primaryStage.getScene().getRoot() instanceof GameScreen)) {
+    private void handleMatchStart(Message message) {
+        // Если мы не в игре - показываем игровой экран
+        if (gameController == null) {
             showGameScreen(null);
         }
     }
 
-    private void handleRoundStart(common.Message message) {
-        if (primaryStage.getScene() != null && primaryStage.getScene().getRoot() instanceof GameScreen) {
-            ((GameScreen) primaryStage.getScene().getRoot()).handleRoundStart(message);
+    private void handleRoundStart(Message message) {
+        // Если GameController активен - обрабатываем начало раунда
+        if (gameController != null) {
+            gameController.handleRoundStart(message);
         } else {
+            // Иначе показываем игровой экран и затем обрабатываем сообщение
             showGameScreen(null);
-            if (primaryStage.getScene() != null && primaryStage.getScene().getRoot() instanceof GameScreen) {
-                ((GameScreen) primaryStage.getScene().getRoot()).handleRoundStart(message);
+            if (gameController != null) {
+                gameController.handleRoundStart(message);
             }
         }
     }
 
     public void showConnectionScreen() {
-        // Всегда создаем НОВЫЙ экземпляр
-        ConnectionScreen newConnectionScreen = new ConnectionScreen(this, networkService);
+        try {
+            // ЯВНО отключаем полноэкранный режим перед сменой сцены
+            if (primaryStage.isFullScreen()) {
+                primaryStage.setFullScreen(false);
+            }
 
-        Scene connectionScene = new Scene(newConnectionScreen, 400, 300);
-        primaryStage.setScene(connectionScene);
-        primaryStage.setResizable(false);
-        centerStage();
-        primaryStage.setWidth(400);
-        primaryStage.setHeight(300);
-        primaryStage.centerOnScreen();
+            // ЯВНО сбрасываем параметры окна
+            primaryStage.setResizable(false);
 
-        gameStarted = false;
-        System.out.println("[APP] Показан экран подключения");
+            // Загружаем FXML и получаем контроллер
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/client/views/connection_screen.fxml"));
+            Parent root = loader.load();
+
+            connectionController = loader.getController();
+            connectionController.setMainApp(this);
+            connectionController.setNetworkService(networkService);
+
+            // Создаем новую сцену с ПРАВИЛЬНЫМИ ПАРАМЕТРАМИ
+            Scene scene = new Scene(root);
+
+            // Устанавливаем фиксированный размер ПОСЛЕ создания сцены
+            primaryStage.setScene(scene);
+            primaryStage.setWidth(400);
+            primaryStage.setHeight(300);
+
+            // Центрируем окно
+            primaryStage.centerOnScreen();
+
+            // Дополнительная гарантия правильного отображения
+            Platform.runLater(() -> {
+                primaryStage.sizeToScene();
+            });
+
+            // Сбрасываем другие контроллеры
+            gameController = null;
+            gameOverController = null;
+
+            gameStarted = false;
+            System.out.println("[APP] Показан экран подключения");
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.err.println("Ошибка загрузки FXML для экрана подключения");
+        }
     }
 
     public void showGameScreen(String playerId) {
-        GameScreen newGameScreen = new GameScreen(this, networkService);
-        networkService.setPlayerId(playerId);
+        try {
+            // Загружаем FXML и получаем контроллер
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/client/views/game_screen.fxml"));
+            Parent root = loader.load();
 
-        // Получаем значение чекбокса компаса из ConnectionScreen, если он существует
-        if (primaryStage.getScene() != null && primaryStage.getScene().getRoot() instanceof ConnectionScreen) {
-            ConnectionScreen connectionScreen = (ConnectionScreen) primaryStage.getScene().getRoot();
-            newGameScreen.setShowCompass(connectionScreen.getShowCompass());
-        } else {
-            newGameScreen.setShowCompass(showCompass);
-        }
+            gameController = loader.getController();
+            gameController.setMainApp(this);
+            gameController.setNetworkService(networkService);
+            gameController.setPlayerId(playerId);
 
-        if (playerId != null) {
-            newGameScreen.setPlayerId(playerId);
-        }
-
-        Scene gameScene = new Scene(newGameScreen, 800, 600);
-        primaryStage.setScene(gameScene);
-        primaryStage.setFullScreen(true);
-
-
-        // Принудительно устанавливаем фокус через небольшую задержку
-        Platform.runLater(() -> {
-            newGameScreen.requestFocus();
-            System.out.println("[APP] Фокус установлен на игровом экране");
-        });
-
-        gameStarted = true;
-        System.out.println("[APP] Показан игровой экран");
-    }
-
-    public void showGameOverScreen(common.Message message) {
-        // Всегда создаем НОВЫЙ экземпляр
-        GameOverScreen newGameOverScreen = new GameOverScreen(this, message);
-
-        Scene gameOverScene = new Scene(newGameOverScreen, 800, 600);
-        primaryStage.setScene(gameOverScene);
-        primaryStage.setResizable(false);
-        centerStage();
-        primaryStage.setWidth(800);
-        primaryStage.setHeight(600);
-        primaryStage.centerOnScreen();
-
-        gameStarted = false;
-        System.out.println("[APP] Показан экран окончания игры");
-
-        new Thread(() -> {
-            if (networkService != null) {
-                networkService.disconnect();
+            // Получаем значение компаса из предыдущего экрана
+            if (connectionController != null) {
+                gameController.setShowCompass(connectionController.getShowCompass());
+            } else {
+                gameController.setShowCompass(showCompass);
             }
-        }).start();
+
+            // Создаем новую сцену
+            Scene scene = new Scene(root);
+            primaryStage.setScene(scene);
+
+            // Вход в полноэкранный режим
+            primaryStage.setFullScreen(true);
+
+            // Устанавливаем фокус на игровое поле
+            Platform.runLater(() -> {
+                if (gameController != null) {
+                    gameController.requestFocusOnGameCanvas();
+                    System.out.println("[APP] Фокус установлен на игровом экране");
+                }
+            });
+
+            // Сбрасываем другие контроллеры
+            connectionController = null;
+            gameOverController = null;
+
+            gameStarted = true;
+            System.out.println("[APP] Показан игровой экран");
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.err.println("Ошибка загрузки FXML для игрового экрана");
+        }
     }
 
-    private void centerStage() {
-        Platform.runLater(() -> {
-            primaryStage.sizeToScene();
+    public void showGameOverScreen(Message message) {
+        try {
+            // ЯВНО отключаем полноэкранный режим
+            if (primaryStage.isFullScreen()) {
+                primaryStage.setFullScreen(false);
+            }
+
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/client/views/game_over_screen.fxml"));
+            Parent root = loader.load();
+
+            gameOverController = loader.getController();
+            gameOverController.setMainApp(this);
+            gameOverController.setMessageData(message);
+
+            // Создаем новую сцену
+            Scene scene = new Scene(root);
+            primaryStage.setScene(scene);
+
+            // Устанавливаем фиксированный размер
+            primaryStage.setResizable(false);
+            primaryStage.setWidth(800);
+            primaryStage.setHeight(600);
             primaryStage.centerOnScreen();
-        });
+
+            // Сбрасываем другие контроллеры
+            connectionController = null;
+            gameController = null;
+
+            gameStarted = false;
+            System.out.println("[APP] Показан экран окончания игры");
+
+            // Автоматический возврат к экрану подключения через 5 секунд
+            new Thread(() -> {
+                if (networkService != null) {
+                    networkService.disconnect();
+                }
+
+                try {
+                    Thread.sleep(5000); // 5 секунд на экране окончания
+                } catch (InterruptedException ignored) {}
+
+                Platform.runLater(() -> {
+                    if (!isClosing) {
+                        showConnectionScreen();
+                    }
+                });
+            }).start();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.err.println("Ошибка загрузки FXML для экрана окончания игры");
+        }
     }
 
+    public void setCompassEnabled(boolean enabled) {
+        this.showCompass = enabled;
+    }
+
+    public NetworkService getNetworkService() {
+        return networkService;
+    }
 
     public static void main(String[] args) {
         launch(args);
