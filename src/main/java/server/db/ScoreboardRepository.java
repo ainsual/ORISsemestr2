@@ -34,6 +34,7 @@ public class ScoreboardRepository {
      * Обновить результат, ТОЛЬКО если он лучше предыдущего
      */
     public void updateIfBetter(String playerName, int newScore) {
+        if (newScore < 5) return;
         String sql = """
                     INSERT INTO scoreboard (player_name, score)
                     VALUES (?, ?)
