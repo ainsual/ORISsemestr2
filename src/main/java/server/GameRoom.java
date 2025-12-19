@@ -19,7 +19,7 @@ public class GameRoom {
     private String currentTargetColor;
     private boolean isRoundActive = false;
     private boolean gameStarted = false;
-    private double matchStartCountdown = 1000;
+    private double matchStartCountdown = GameSettings.BASE_MATCH_START_DELAY;
     private byte[] field; // GRID_W * GRID_H
 
     // Таймеры
@@ -94,16 +94,27 @@ public class GameRoom {
         }
 
         matchStartCountdown = calculateMatchStartDelay();
+
+        // Гарантируем положительное значение
+        if (matchStartCountdown < 0) {
+            matchStartCountdown = GameSettings.MIN_MATCH_START_DELAY;
+        }
+
         gameStarted = false;
 
-        System.out.println("[ROOM] Запуск обратного отсчета до начала матча: " + String.format("%.1f", matchStartCountdown) + " сек");
+        System.out.println("[ROOM] Запуск обратного отсчета до начала матча: " +
+                String.format("%.1f", matchStartCountdown) + " сек");
 
         matchStartTimer = scheduler.scheduleAtFixedRate(() -> {
             matchStartCountdown -= 0.1;
+
+            // Если игроков меньше 2, приостанавливаем отсчет
             if (players.size() < 2) {
                 matchStartCountdown += 0.1;
             }
-            if (matchStartCountdown <= 0) {
+
+            // Если отсчет дошел до нуля и игроков достаточно - начинаем игру
+            if (matchStartCountdown <= 0 && players.size() >= 2) {
                 startGame();
                 if (matchStartTimer != null) matchStartTimer.cancel(true);
             } else {
@@ -113,10 +124,15 @@ public class GameRoom {
     }
 
     private double calculateMatchStartDelay() {
-        if (matchStartCountdown == 1000) {
-            return -0.1;
+        // Если это первый вызов после сброса, используем базовое значение
+        if (matchStartCountdown == GameSettings.BASE_MATCH_START_DELAY) {
+            double delay = GameSettings.BASE_MATCH_START_DELAY -
+                    ((players.size() - 2) * GameSettings.PLAYER_DELAY_REDUCTION);
+            return Math.max(delay, GameSettings.MIN_MATCH_START_DELAY);
         }
-        double delay = GameSettings.BASE_MATCH_START_DELAY -
+
+        // В противном случае используем текущее значение (для динамического изменения)
+        double delay = matchStartCountdown -
                 ((players.size() - 2) * GameSettings.PLAYER_DELAY_REDUCTION);
         return Math.max(delay, GameSettings.MIN_MATCH_START_DELAY);
     }
@@ -176,18 +192,18 @@ public class GameRoom {
         isRoundActive = false;
         System.out.println("[ROOM] Раунд " + round + " завершен");
 
-        // Проверка, кто остался на правильном цвете
         List<Player> survivors = new ArrayList<>();
+        List<String> eliminatedPlayers = new ArrayList<>();
 
         for (Player player : players.values()) {
             if (player.isAlive()) {
                 String spotColor = getSpotColorAt(player.getX(), player.getY());
-                System.out.println("[ROOM Цвет игрока " + player.getName() + spotColor);
                 if (spotColor.equals(currentTargetColor)) {
                     survivors.add(player);
                     System.out.println("[ROOM] Игрок выжил: " + player.getName());
                 } else {
                     player.setAlive(false);
+                    eliminatedPlayers.add(player.getId());
                     System.out.println("[ROOM] Игрок выбыл: " + player.getName() +
                             " (стоял на " + spotColor + ", нужен " + currentTargetColor + ")");
                 }
@@ -195,6 +211,11 @@ public class GameRoom {
         }
 
         broadcastGameState();
+
+        // Отправляем персональные сообщения eliminated игрокам
+        for (String playerId : eliminatedPlayers) {
+            sendPlayerEliminated(playerId);
+        }
 
         // Задержка перед следующим раундом или завершением
         scheduler.schedule(() -> {
@@ -205,6 +226,30 @@ public class GameRoom {
                 startNewRound(false);
             }
         }, 2000, TimeUnit.MILLISECONDS);
+    }
+
+    private void sendPlayerEliminated(String playerId) {
+        ClientHandler handler = getClientHandlerByPlayerId(playerId);
+        if (handler != null) {
+            Message msg = new Message(MessageTypes.PLAYER_ELIMINATED);
+            msg.setWinner("Вы проиграли!");
+
+            // Добавляем текущий scoreboard для выбывшего игрока
+            List<ScoreboardEntry> topScores = scoreboard.getTop(10);
+            msg.setScores(topScores);
+
+            handler.sendMessage(msg);
+        }
+    }
+
+    // Вспомогательный метод для получения ClientHandler по playerId
+    private ClientHandler getClientHandlerByPlayerId(String playerId) {
+        for (ClientHandler handler : clients) {
+            if (playerId.equals(handler.getPlayerId())) {
+                return handler;
+            }
+        }
+        return null;
     }
 
     private void endGame(Player winner) {
@@ -223,20 +268,35 @@ public class GameRoom {
 
 
     public void resetParamsGame() {
+        // Отменяем все таймеры
+        if (roundTimer != null && !roundTimer.isDone()) {
+            roundTimer.cancel(true);
+        }
+        if (matchStartTimer != null && !matchStartTimer.isDone()) {
+            matchStartTimer.cancel(true);
+        }
+
+        // Сбрасываем параметры игры
         gameStarted = false;
         isRoundActive = false;
         currentTargetColor = "#FFFFFF";
         round = 0;
-        roundDuration = calculateRoundDuration();
-        ;
-        matchStartCountdown = 1000;
+        roundDuration = GameSettings.INITIAL_ROUND_TIME;
+        matchStartCountdown = GameSettings.BASE_MATCH_START_DELAY; // Начальное значение из настроек
 
         System.out.println("[ROOM] Сброс комнаты");
-        for (String playerId : players.keySet()) {
+
+        // Создаем копию ключей для безопасного удаления
+        List<String> playerIds = new ArrayList<>(players.keySet());
+        for (String playerId : playerIds) {
             removePlayer(playerId);
         }
 
+        // Генерируем новое поле для следующей игры
+        generateField();
 
+        // Отправляем обновление состояния
+        broadcastGameState();
     }
 
     private String getSpotColorAt(double x, double y) {
@@ -293,9 +353,6 @@ public class GameRoom {
         }
         msg.setPlayers(playerList);
 
-        System.out.println("[ROOM][DEBUG] Отправка GAME_STATE. Раунд: " + round +
-                ", Игроков: " + players.size() +
-                ", Времени: " + String.format("%.1f", roundTimeLeft));
 
         broadcastMessage(msg);
     }

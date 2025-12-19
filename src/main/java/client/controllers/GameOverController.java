@@ -49,7 +49,6 @@ public class GameOverController {
 
     public void setMessageData(Message message) {
         this.gameResultMessage = message;
-
         // Обновляем интерфейс с данными
         if (message != null) {
             updateUIWithMessage(message);
@@ -59,13 +58,17 @@ public class GameOverController {
     private void updateUIWithMessage(Message message) {
         // Установка победителя
         String winner = message.getWinner();
-        if (winner != null && !winner.isEmpty()) {
+        if (winner != null && !winner.isEmpty() && !"Вы проиграли!".equals(message.getWinner())) {
             winnerLabel.setText("Победитель: " + winner);
             winnerLabel.setStyle("-fx-text-fill: #27ae60;");
+        } else if ("Вы проиграли!".equals(message.getWinner())) {
+            winnerLabel.setText("Вы проиграли!");
+            winnerLabel.setStyle("-fx-text-fill: #e74c3c;");
         } else {
             winnerLabel.setText("Ничья!");
             winnerLabel.setStyle("-fx-text-fill: #f39c12;");
         }
+
 
         // Заполнение таблицы результатов
         if (message.getScores() != null && !message.getScores().isEmpty()) {

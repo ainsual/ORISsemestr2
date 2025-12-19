@@ -188,6 +188,7 @@ public class ClientHandler implements Runnable {
             System.err.println("Ошибка при отключении клиента: " + e.getMessage());
         }
     }
-
-
+    public String getPlayerId() {
+        return playerId;
+    }
 }

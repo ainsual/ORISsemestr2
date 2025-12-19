@@ -71,6 +71,9 @@ public class MainApp extends Application {
                 case MessageTypes.MATCH_START:
                     handleMatchStart(message);
                     break;
+                case MessageTypes.PLAYER_ELIMINATED:
+                    handlePlayerEliminated(message);
+                    break;
             }
         });
     }
@@ -89,6 +92,23 @@ public class MainApp extends Application {
                 networkService.disconnect();
             }
             showConnectionScreen();
+        });
+    }
+    private void handlePlayerEliminated(Message message) {
+        Platform.runLater(() -> {
+            // Показываем экран окончания игры с надписью "Вы проиграли"
+            if (message.getWinner() == null || message.getWinner().isEmpty()) {
+                message.setWinner("Вы проиграли!");
+            }
+            showGameOverScreen(message);
+
+            // Автоматически закрываем соединение после показа экрана
+            new Thread(() -> {
+                try {
+                    Thread.sleep(5000); // 5 секунд на экране
+                } catch (InterruptedException ignored) {}
+                networkService.disconnect();
+            }).start();
         });
     }
 
